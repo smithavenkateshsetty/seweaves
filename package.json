@@ -1,0 +1,23 @@
+{
+  "name": "seweaves",
+  "version": "1.1.0",
+  "description": "SeWeaves (VSMA enterprise) — saree storefront with admin catalogue and ranking",
+  "type": "module",
+  "main": "server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.21.2",
+    "multer": "^2.0.1",
+    "sharp": "^0.33.5"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "^3.700.0"
+  }
+}

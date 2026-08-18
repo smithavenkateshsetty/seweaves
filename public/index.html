@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SeWeaves — exclusive sarees, embroidery blouses & designer wear</title>
+<meta name="description" content="SeWeaves (VSMA enterprise). Bridal silks, party wear, festive drapes and ready-made embroidery blouses. Launch offer: 25% off.">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="page">
+
+<p class="offerbar">Launch offer — 25% off everything</p>
+
+<header class="topbar">
+  <a class="brand" href="/">SeWeaves<small>VSMA enterprise</small></a>
+  <nav class="topnav">
+    <a href="#catalogue" data-filter="">Everything</a>
+    <a href="#catalogue" data-filter="bridal">Bridal</a>
+    <a href="#catalogue" data-filter="party">Party</a>
+    <a href="#catalogue" data-filter="festive">Festive</a>
+    <a href="#catalogue" data-filter="designer">Designer</a>
+    <a href="#catalogue" data-filter="blouse">Blouses</a>
+  </nav>
+  <button class="bagbtn" id="openBag">Bag <b>(<span id="bagCount">0</span>)</b></button>
+</header>
+
+<main>
+  <section class="shell" style="text-align:center;padding-bottom:0">
+    <p class="eyebrow">A dealer in exclusive sarees</p>
+    <h1 class="h1">Every variety,<br>every occasion.</h1>
+    <p class="lede" style="margin:0 auto 28px">
+      Ready-made embroidery blouses and curated designer wear, bought one piece at a time.
+      If a weave doesn't hold up to a close look in daylight, it doesn't reach the rail.
+    </p>
+    <a class="btn" href="#catalogue">See what's in stock</a>
+  </section>
+
+  <section class="shell" id="catalogue">
+    <div class="catalogue">
+
+      <aside class="filters">
+        <div class="fgroup">
+          <h4>Search</h4>
+          <input class="field" id="q" type="search" placeholder="Kanjivaram, red, aari…">
+        </div>
+
+        <div class="fgroup">
+          <h4>Collection</h4>
+          <div id="collectionOpts"></div>
+        </div>
+
+        <div class="fgroup">
+          <h4>Price</h4>
+          <div class="stack">
+            <input class="field" id="minPrice" type="number" min="0" placeholder="Min ₹">
+            <input class="field" id="maxPrice" type="number" min="0" placeholder="Max ₹">
+          </div>
+        </div>
+
+        <div class="fgroup">
+          <h4>Availability</h4>
+          <label class="checkrow"><input type="checkbox" id="inStock"> In stock only</label>
+        </div>
+
+        <div class="fgroup">
+          <button class="btn ghost sm wide" id="clearFilters">Clear filters</button>
+        </div>
+      </aside>
+
+      <div>
+        <div class="resbar">
+          <span class="count" id="count">Loading…</span>
+          <label class="eyebrow" style="margin:0" for="sort">Sort</label>
+          <select class="field" id="sort" style="width:auto">
+            <option value="recommended">Recommended</option>
+            <option value="newest">Newest first</option>
+            <option value="popular">Most enquired</option>
+            <option value="rating">Best rated</option>
+            <option value="price_asc">Price: low to high</option>
+            <option value="price_desc">Price: high to low</option>
+          </select>
+        </div>
+
+        <div class="grid" id="grid"></div>
+
+        <div style="text-align:center;margin-top:40px">
+          <button class="btn ghost" id="more" hidden>Show more pieces</button>
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+
+<footer class="foot-main">
+  <span class="brand">SeWeaves</span>
+  <span>VSMA enterprise · Bengaluru</span>
+  <span><a href="/admin" style="text-decoration:none">Shop admin</a></span>
+</footer>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-label="Your bag">
+  <header>
+    <h3>Your bag</h3>
+    <button class="x" id="closeBag" aria-label="Close bag">&times;</button>
+  </header>
+  <div class="body" id="bagBody"></div>
+  <div class="foot" id="bagFoot"></div>
+</aside>
+
+<script src="/app.js"></script>
+</body>
+</html>

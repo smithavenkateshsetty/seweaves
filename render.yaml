@@ -1,0 +1,25 @@
+# Render blueprint. Push to GitHub, then New > Blueprint on Render.
+services:
+  - type: web
+    name: seweaves
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_PASSWORD
+        generateValue: true    # Render creates one; read it in the dashboard
+      - key: SHOP_WHATSAPP
+        sync: false            # set this by hand: 919807338745
+    # Free plans cannot attach disks, so the catalogue resets when the service
+    # sleeps. On Starter ($7/mo) uncomment this and photos and data persist.
+    # disk:
+    #   name: seweaves-data
+    #   mountPath: /var/data
+    #   sizeGB: 1
