@@ -6,6 +6,19 @@ let shots = [];      // image paths, order as set in admin
 let current = 0;
 
 (async function () {
+  try {
+    await load();
+  } catch (err) {
+    // A blank "Loading..." tells the customer nothing. Say what happened.
+    console.error('SeWeaves product page:', err);
+    root.innerHTML = `<p class="eyebrow">Something went wrong</p>
+      <h1 class="h1">This piece would not load.</h1>
+      <p class="lede">${esc(err.message || 'Unknown error')}</p>
+      <p style="margin-top:26px"><a class="btn" href="/#catalogue">Back to the rail</a></p>`;
+  }
+})();
+
+async function load() {
   const res = await fetch('/api/products/' + encodeURIComponent(slug));
   if (!res.ok) {
     root.innerHTML = `<p class="eyebrow">Not found</p>
@@ -16,9 +29,10 @@ let current = 0;
   }
   const p = await res.json();
   document.title = `${p.title} — SeWeaves`;
-  shots = p.images;
+  shots = Array.isArray(p.images) ? p.images : [];
+  p.reviews = Array.isArray(p.reviews) ? p.reviews : [];
   render(p);
-})();
+}
 
 /* ------------------------------ gallery ---------------------------- */
 function galleryMarkup() {
@@ -150,7 +164,8 @@ document.addEventListener('keydown', e => {
 /* ------------------------------ page ------------------------------- */
 function render(p) {
   const spec = (k, v) => v ? `<li><span class="k">${k}</span><span class="v">${esc(v)}</span></li>` : '';
-  const stars = n => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
+  const stars = n => { const k = Math.max(0, Math.min(5, Math.round(Number(n) || 0)));
+    return '★'.repeat(k) + '☆'.repeat(5 - k); };
 
   root.innerHTML = `
   <div class="detail">

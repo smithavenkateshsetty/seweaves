@@ -1,10 +1,12 @@
 {
   "name": "seweaves",
   "version": "1.1.0",
-  "description": "SeWeaves (VSMA enterprise) — saree storefront with admin catalogue and ranking",
+  "description": "SeWeaves (VSMA enterprise) \u2014 saree storefront with admin catalogue and ranking",
   "type": "module",
   "main": "server.js",
-  "engines": { "node": "22.x" },
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
