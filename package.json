@@ -4,7 +4,7 @@
   "description": "SeWeaves (VSMA enterprise) — saree storefront with admin catalogue and ranking",
   "type": "module",
   "main": "server.js",
-  "engines": { "node": ">=20" },
+  "engines": { "node": "22.x" },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
