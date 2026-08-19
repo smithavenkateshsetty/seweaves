@@ -1,4 +1,16 @@
-const { Cart, openBag, rupees, esc, thumb, COLLECTION_LABEL } = window.SeWeaves;
+/* Defensive: if app.js failed to load, fall back to local helpers rather than
+ * throwing on line 1 and leaving the page stuck on "Loading...". */
+const SW = window.SeWeaves || {};
+const esc = SW.esc || (v => String(v ?? '').replace(/[&<>"']/g,
+  c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+const rupees = SW.rupees || (n => '\u20B9' + Number(n || 0).toLocaleString('en-IN'));
+const thumb = SW.thumb || (s => s ? s.replace(/\.webp$/, '-thumb.webp') : '');
+const COLLECTION_LABEL = SW.COLLECTION_LABEL || {
+  bridal: 'Bridal specials', party: 'Party wear', festive: 'Festive collection',
+  designer: 'Designer wear', blouse: 'Embroidery blouses'
+};
+const Cart = SW.Cart || null;
+const openBag = SW.openBag || (() => {});
 const slug = location.pathname.split('/').filter(Boolean).pop();
 const root = document.getElementById('detail');
 
@@ -69,7 +81,7 @@ function show(i) {
   if (counter) counter.textContent = `${current + 1} / ${shots.length}`;
   document.querySelectorAll('#rail button').forEach(b =>
     b.setAttribute('aria-current', +b.dataset.i === current));
-  if (lb.classList.contains('open')) paintLightbox();
+  if (lb && lb.classList.contains('open')) paintLightbox();
 }
 
 function wireGallery() {
@@ -135,27 +147,31 @@ function wireGallery() {
 /* ----------------------------- lightbox ---------------------------- */
 const lb = document.getElementById('lightbox');
 function paintLightbox() {
-  document.getElementById('lbImg').src = shots[current];
+  const img = document.getElementById('lbImg');
+  if (!img) return;
+  img.src = shots[current];
   document.getElementById('lbImg').alt = `Photo ${current + 1}`;
   document.getElementById('lbCount').textContent = `${current + 1} of ${shots.length}`;
 }
 function openLightbox() {
-  if (!shots.length) return;
+  if (!shots.length || !lb) return;
   paintLightbox();
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
   document.getElementById('lbClose').focus();
 }
 function closeLightbox() {
+  if (!lb) return;
   lb.classList.remove('open');
   document.body.style.overflow = '';
 }
-document.getElementById('lbClose').onclick = closeLightbox;
-document.getElementById('lbPrev').onclick = () => show(current - 1);
-document.getElementById('lbNext').onclick = () => show(current + 1);
-lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+bind('lbClose', closeLightbox);
+bind('lbPrev', () => show(current - 1));
+bind('lbNext', () => show(current + 1));
+if (lb) lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
 document.addEventListener('keydown', e => {
-  if (!lb.classList.contains('open')) return;
+  if (!lb || !lb.classList.contains('open')) return;
   if (e.key === 'Escape') closeLightbox();
   if (e.key === 'ArrowLeft') show(current - 1);
   if (e.key === 'ArrowRight') show(current + 1);
@@ -224,7 +240,10 @@ function render(p) {
   wireGallery();
 
   const add = document.getElementById('add');
-  if (add) add.onclick = () => { Cart.add(p); openBag(true); };
+  if (add) add.onclick = () => {
+    if (!Cart) { alert('The bag is unavailable — please reload the page.'); return; }
+    Cart.add(p); openBag(true);
+  };
 
   document.getElementById('sendReview').onclick = async () => {
     const msg = document.getElementById('rMsg');

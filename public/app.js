@@ -28,6 +28,9 @@ const Cart = {
   count() { return Cart.read().reduce((s, i) => s + i.qty, 0); }
 };
 
+/* Published before any DOM wiring. product.js destructures this on its first
+ * line, so if a wiring error killed the script the whole page would hang. */
+
 /* --------------------------- catalogue ----------------------------- */
 const state = { q: '', collection: '', sort: 'recommended', min: 0, max: 0, inStock: false, page: 1 };
 let loaded = [];
@@ -118,9 +121,11 @@ async function loadFacets() {
 
 /* ----------------------------- bag UI ------------------------------ */
 function paintBag() {
-  $('bagCount').textContent = Cart.count();
+  const badge = $('bagCount');
+  if (badge) badge.textContent = Cart.count();
   const items = Cart.read();
   const body = $('bagBody'), foot = $('bagFoot');
+  if (!body || !foot) return;
 
   if (!items.length) {
     body.innerHTML = `<div class="empty">
@@ -199,8 +204,10 @@ async function placeOrder() {
 }
 
 function openBag(open) {
-  $('drawer').classList.toggle('open', open);
-  $('scrim').classList.toggle('open', open);
+  const drawer = $('drawer'), scrim = $('scrim');
+  if (!drawer || !scrim) return;
+  drawer.classList.toggle('open', open);
+  scrim.classList.toggle('open', open);
   document.body.style.overflow = open ? 'hidden' : '';
 }
 
@@ -234,10 +241,12 @@ if (grid) {
   loadFacets(); load();
 }
 
-$('openBag').onclick = () => openBag(true);
-$('closeBag').onclick = () => openBag(false);
-$('scrim').onclick = () => openBag(false);
+// Guarded: a page without the drawer markup should still work.
+const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
+on('openBag', () => openBag(true));
+on('closeBag', () => openBag(false));
+on('scrim', () => openBag(false));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') openBag(false); });
-paintBag();
+try { paintBag(); } catch (err) { console.error('Bag render failed:', err); }
 
 window.SeWeaves = { Cart, openBag, rupees, esc, thumb, COLLECTION_LABEL };
