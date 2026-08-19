@@ -96,6 +96,7 @@ function receiveImages(req, res, next) {
 // 500x667 thumbnail is what the grid and the gallery rail actually load.
 app.post('/api/admin/upload', requireAdmin, receiveImages, wrap(async (req, res) => {
   const out = [];
+  try {
   for (const file of req.files || []) {
     const name = `${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
     const [full, thumb] = await Promise.all([
@@ -112,12 +113,20 @@ app.post('/api/admin/upload', requireAdmin, receiveImages, wrap(async (req, res)
     ]);
     out.push(url);
   }
+  } catch (err) {
+    // Storage failures are configuration problems nine times out of ten.
+    // Say which backend failed and why, rather than a generic 500.
+    console.error('Upload failed:', err);
+    return res.status(502).json({
+      error: `Could not save the photo to ${storage.describeStorage().split(' —')[0]}: ${err.message}`
+    });
+  }
   res.json({ images: out });
 }));
 
-// Only mounted when running on local disk; with R2 the images are served by
-// Cloudflare and never touch this process.
-if (!storage.usingR2) {
+// Only mounted when running on local disk. With Cloudinary or R2 the images
+// are served from their CDN and never touch this process.
+if (!storage.usingR2 && !storage.usingCloudinary) {
   app.use('/uploads', express.static(storage.LOCAL_DIR, { maxAge: '30d', immutable: true }));
 }
 
