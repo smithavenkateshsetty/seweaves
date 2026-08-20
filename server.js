@@ -10,6 +10,7 @@ import {
   q, one, migrate, listProducts, getProduct, facets, uniqueSlug, pool
 } from './db.js';
 import * as storage from './storage.js';
+import { withPricing, priceOf, MAX_DISCOUNT } from './pricing.js';
 
 // Resolve from this file, not the working directory. Hosts don't guarantee cwd.
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -130,11 +131,50 @@ if (!storage.usingR2 && !storage.usingCloudinary) {
   app.use('/uploads', express.static(storage.LOCAL_DIR, { maxAge: '30d', immutable: true }));
 }
 
+/* ---------------------------- settings ------------------------------ *
+ * The store-wide discount is read on nearly every request, so it is cached
+ * briefly rather than hitting the database each time. 30s is short enough
+ * that a change in the admin shows up almost immediately.
+ * -------------------------------------------------------------------- */
+let settingsCache = { value: null, at: 0 };
+
+async function storeDiscount() {
+  if (settingsCache.value !== null && Date.now() - settingsCache.at < 30_000) {
+    return settingsCache.value;
+  }
+  const row = await one("SELECT value FROM settings WHERE key = 'store_discount'");
+  const pct = Math.max(0, Math.min(MAX_DISCOUNT, parseInt(row?.value) || 0));
+  settingsCache = { value: pct, at: Date.now() };
+  return pct;
+}
+
+async function setStoreDiscount(pct) {
+  const clean = Math.max(0, Math.min(MAX_DISCOUNT, parseInt(pct) || 0));
+  await q(`INSERT INTO settings (key, value) VALUES ('store_discount', @v)
+           ON CONFLICT (key) DO UPDATE SET value = @v`, { v: String(clean) });
+  settingsCache = { value: clean, at: Date.now() };
+  return clean;
+}
+
+app.get('/api/settings', wrap(async (_req, res) => {
+  res.json({ store_discount: await storeDiscount() });
+}));
+
+app.get('/api/admin/settings', requireAdmin, wrap(async (_req, res) => {
+  res.json({ store_discount: await storeDiscount() });
+}));
+
+app.put('/api/admin/settings', requireAdmin, wrap(async (req, res) => {
+  const value = await setStoreDiscount(req.body.store_discount);
+  res.json({ ok: true, store_discount: value });
+}));
+
 /* --------------------------- public catalogue ---------------------- */
 app.get('/api/products', wrap(async (req, res) => {
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const limit = Math.min(48, parseInt(req.query.limit) || 12);
-  res.json(await listProducts({
+  const discount = await storeDiscount();
+  const result = await listProducts({
     q: String(req.query.q || '').slice(0, 80),
     collection: String(req.query.collection || '').slice(0, 30),
     sort: String(req.query.sort || 'recommended'),
@@ -142,7 +182,10 @@ app.get('/api/products', wrap(async (req, res) => {
     maxPrice: parseInt(req.query.max) || 0,
     inStock: req.query.inStock === '1',
     limit, offset: (page - 1) * limit
-  }));
+  });
+  result.items.forEach(p => withPricing(p, discount));
+  result.store_discount = discount;
+  res.json(result);
 }));
 
 app.get('/api/facets', wrap(async (_req, res) => res.json(await facets())));
@@ -158,7 +201,7 @@ app.get('/api/products/:slug', wrap(async (req, res) => {
     viewed.set(key, Date.now());
     await q('UPDATE products SET views = views + 1 WHERE id = @id', { id: product.id });
   }
-  res.json(product);
+  res.json(withPricing(product, await storeDiscount()));
 }));
 
 app.post('/api/products/:slug/reviews', wrap(async (req, res) => {
@@ -190,17 +233,26 @@ app.post('/api/orders', wrap(async (req, res) => {
   if (!ids.length) return res.status(400).json({ error: 'Those pieces are no longer available.' });
 
   const rows = await q(
-    'SELECT id, sku, title, price FROM products WHERE id = ANY(@ids) AND active = TRUE', { ids });
+    `SELECT id, sku, title, price, discount_type, discount_value
+     FROM products WHERE id = ANY(@ids) AND active = TRUE`, { ids });
   const byId = new Map(rows.map(r => [r.id, r]));
+  const discount = await storeDiscount();
 
   const items = [];
   let total = 0;
+  let saved = 0;
   for (const line of cart.slice(0, 30)) {
     const p = byId.get(parseInt(line.id));
     if (!p) continue;
     const qty = Math.max(1, Math.min(10, parseInt(line.qty) || 1));
-    items.push({ id: p.id, sku: p.sku, title: p.title, price: p.price, qty });
-    total += p.price * qty;
+    // Recomputed here, never taken from the browser.
+    const { list_price, final_price, discount_percent } = priceOf(p, discount);
+    items.push({
+      id: p.id, sku: p.sku, title: p.title,
+      price: final_price, list_price, discount_percent, qty
+    });
+    total += final_price * qty;
+    saved += (list_price - final_price) * qty;
   }
   if (!items.length) return res.status(400).json({ error: 'Those pieces are no longer available.' });
 
@@ -229,12 +281,13 @@ app.post('/api/orders', wrap(async (req, res) => {
     `SeWeaves enquiry ${ref}`,
     ...items.map(i => `${i.qty} x ${i.title} (${i.sku})`),
     `Total Rs ${total.toLocaleString('en-IN')}`,
+    ...(saved > 0 ? [`You save Rs ${saved.toLocaleString('en-IN')}`] : []),
     `Name: ${name}`,
     `Phone: ${phone}`
   ].join('\n');
 
   res.json({
-    ok: true, ref, total,
+    ok: true, ref, total, saved,
     whatsapp: `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(message)}`
   });
 }));
@@ -251,14 +304,28 @@ function normalise(body) {
     v[s] = String(body[s] || '').trim();
   v.active = Boolean(body.active);
   v.images = JSON.stringify((Array.isArray(body.images) ? body.images : []).slice(0, 8));
+
+  v.discount_type = ['percent', 'amount'].includes(body.discount_type)
+    ? body.discount_type : 'none';
+  v.discount_value = Math.max(0, parseInt(body.discount_value) || 0);
+  if (v.discount_type === 'percent') v.discount_value = Math.min(MAX_DISCOUNT, v.discount_value);
+  if (v.discount_type === 'amount' && v.discount_value >= v.price) {
+    // A flat discount at or above the price would make the piece free.
+    v.discount_value = Math.max(0, v.price - 1);
+  }
+  if (v.discount_value === 0) v.discount_type = 'none';
   return v;
 }
 
 app.get('/api/admin/products', requireAdmin, wrap(async (req, res) => {
-  res.json(await listProducts({
+  const discount = await storeDiscount();
+  const result = await listProducts({
     q: String(req.query.q || ''), sort: String(req.query.sort || 'recommended'),
     includeInactive: true, limit: 200
-  }));
+  });
+  result.items.forEach(p => withPricing(p, discount));
+  result.store_discount = discount;
+  res.json(result);
 }));
 
 app.post('/api/admin/products', requireAdmin, wrap(async (req, res) => {
@@ -271,9 +338,11 @@ app.post('/api/admin/products', requireAdmin, wrap(async (req, res) => {
 
   const row = await one(`
     INSERT INTO products (sku, slug, title, collection, fabric, colour, work, blouse_size,
-                          description, price, mrp, stock, images, active, boost)
+                          description, price, mrp, stock, images, active, boost,
+                          discount_type, discount_value)
     VALUES (@sku,@slug,@title,@collection,@fabric,@colour,@work,@blouse_size,
-            @description,@price,@mrp,@stock,@images::jsonb,@active,@boost)
+            @description,@price,@mrp,@stock,@images::jsonb,@active,@boost,
+            @discount_type,@discount_value)
     RETURNING id`, { ...v, slug: await uniqueSlug(v.title) });
   res.json({ ok: true, id: row.id });
 }));
@@ -294,7 +363,8 @@ app.put('/api/admin/products/:id', requireAdmin, wrap(async (req, res) => {
   await q(`
     UPDATE products SET sku=@sku, title=@title, collection=@collection, fabric=@fabric,
       colour=@colour, work=@work, blouse_size=@blouse_size, description=@description,
-      price=@price, mrp=@mrp, stock=@stock, images=@images::jsonb, active=@active, boost=@boost
+      price=@price, mrp=@mrp, stock=@stock, images=@images::jsonb, active=@active,
+      boost=@boost, discount_type=@discount_type, discount_value=@discount_value
     WHERE id=@id`, { ...v, id });
 
   // Photos dropped from the piece are dropped from storage too, or R2 fills up

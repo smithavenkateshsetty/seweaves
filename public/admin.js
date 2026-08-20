@@ -56,7 +56,12 @@ async function loadProducts() {
     <td>${p.images[0] ? `<img src="${thumb(p.images[0])}" alt="">` : ''}</td>
     <td><b>${esc(p.title)}</b><br><span class="muted" style="font-size:.8rem">${esc(p.sku)}</span></td>
     <td>${LABEL[p.collection] || p.collection}</td>
-    <td>${rupees(p.price)}</td>
+    <td>${p.discount_percent > 0
+        ? `<span class="final">${rupees(p.final_price)}</span><span class="was">${rupees(p.list_price)}</span>`
+        : rupees(p.price)}</td>
+    <td>${p.discount_percent > 0
+        ? `<span class="offpill">${p.discount_percent}% ${p.discount_source === 'store' ? 'store' : 'piece'}</span>`
+        : '<span class="muted">—</span>'}</td>
     <td>${p.stock > 0 ? p.stock : '<span class="muted">Sold</span>'}</td>
     <td><input class="field" style="width:64px;padding:5px 8px" type="number"
          min="0" max="10" value="${p.boost}" data-boost="${p.id}"></td>
@@ -71,7 +76,9 @@ async function loadProducts() {
   $('pRows').querySelectorAll('[data-boost]').forEach(inp => inp.onchange = async () => {
     const p = data.items.find(x => x.id === +inp.dataset.boost);
     await api(`/api/admin/products/${p.id}`, {
-      method: 'PUT', body: JSON.stringify({ ...p, boost: +inp.value, images: p.images })
+      method: 'PUT',
+      body: JSON.stringify({ ...p, boost: +inp.value, images: p.images,
+        discount_type: p.discount_type, discount_value: p.discount_value })
     });
     loadProducts();
   });
@@ -93,7 +100,8 @@ $('pSearch').oninput = (() => {
 const F = {
   title: 'fTitle', sku: 'fSku', collection: 'fCollection', price: 'fPrice', mrp: 'fMrp',
   fabric: 'fFabric', colour: 'fColour', work: 'fWork', blouse_size: 'fSize',
-  stock: 'fStock', boost: 'fBoost', description: 'fDesc'
+  stock: 'fStock', boost: 'fBoost', description: 'fDesc',
+  discount_type: 'fDiscType', discount_value: 'fDiscValue'
 };
 
 function readForm() {
@@ -104,7 +112,11 @@ function readForm() {
   return v;
 }
 function fillForm(p) {
-  for (const [k, id] of Object.entries(F)) $(id).value = p?.[k] ?? (k === 'stock' ? 1 : '');
+  for (const [k, id] of Object.entries(F)) {
+    const fallback = k === 'stock' ? 1 : k === 'discount_type' ? 'none' : k === 'discount_value' ? 0 : '';
+    $(id).value = p?.[k] ?? fallback;
+  }
+  hint();
   $('fActive').checked = p ? !!p.active : true;
   shots = p ? [...p.images] : [];
   paintShots();
@@ -123,6 +135,7 @@ function resetForm() {
   editingId = null;
   fillForm(null);
   $('fMrp').value = 0; $('fBoost').value = 0; $('fStock').value = 1;
+  $('fDiscType').value = 'none'; $('fDiscValue').value = 0; hint();
   $('formTitle').textContent = 'Add a piece';
   $('cancelEdit').hidden = true;
   $('save').textContent = 'Save the piece';
@@ -145,6 +158,53 @@ $('save').onclick = async () => {
     btn.disabled = false;
     btn.textContent = editingId ? 'Save changes' : 'Save the piece';
   }
+};
+
+/* --------------------------- discounts ------------------------------ */
+function hint() {
+  const type = $('fDiscType')?.value;
+  const value = parseInt($('fDiscValue')?.value) || 0;
+  const price = parseInt($('fPrice')?.value) || 0;
+  const el = $('discHint');
+  if (!el) return;
+
+  if (type === 'none' || value <= 0) {
+    el.textContent = 'This piece follows the store-wide discount.';
+    return;
+  }
+  const final = type === 'percent'
+    ? Math.round(price * (1 - Math.min(90, value) / 100))
+    : Math.max(1, price - value);
+  const pct = price > 0 ? Math.round((1 - final / price) * 100) : 0;
+  el.textContent = price > 0
+    ? `Customer pays ${rupees(final)} — ${pct}% off ${rupees(price)}.`
+    : 'Set a price first.';
+}
+
+['fDiscType', 'fDiscValue', 'fPrice'].forEach(id => {
+  const el = $(id);
+  if (el) el.oninput = el.onchange = hint;
+});
+
+async function loadDiscount() {
+  const { store_discount } = await api('/api/admin/settings');
+  $('storeDiscount').value = store_discount;
+}
+
+$('saveDiscount').onclick = async () => {
+  const btn = $('saveDiscount'), msg = $('discountMsg');
+  btn.disabled = true;
+  try {
+    const { store_discount } = await api('/api/admin/settings', {
+      method: 'PUT', body: JSON.stringify({ store_discount: $('storeDiscount').value })
+    });
+    msg.innerHTML = store_discount > 0
+      ? `<p class="note good">Every piece without its own discount is now ${store_discount}% off.</p>`
+      : '<p class="note">Store-wide discount is off. Pieces with their own discount keep it.</p>';
+    loadProducts();
+  } catch (e) {
+    msg.innerHTML = `<p class="note bad">${esc(e.message)}</p>`;
+  } finally { btn.disabled = false; }
 };
 
 /* ----------------------------- uploads -----------------------------
@@ -299,7 +359,7 @@ async function loadStats() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([loadStats(), loadProducts(), loadOrders(), loadReviews()]); }
+  try { await Promise.all([loadStats(), loadProducts(), loadOrders(), loadReviews(), loadDiscount()]); }
   catch { /* api() already handled a signed-out state */ }
 }
 

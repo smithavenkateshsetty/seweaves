@@ -7,6 +7,21 @@ const COLLECTION_LABEL = {
 };
 const thumb = src => src ? src.replace(/\.webp$/, '-thumb.webp') : '';
 
+/* Price block. The server sends final_price / list_price / discount_percent;
+ * older responses only have price, so fall back to that. */
+function priceHTML(p, big = false) {
+  const final = p.final_price ?? p.price;
+  const list = p.list_price ?? p.mrp ?? p.price;
+  const off = p.discount_percent || (list > final ? Math.round((1 - final / list) * 100) : 0);
+  const cls = big ? 'bigprice' : 'price';
+  if (off > 0 && list > final) {
+    return `<p class="${cls}">${rupees(final)}
+      <del>${rupees(list)}</del>
+      <span class="off">${off}% off</span></p>`;
+  }
+  return `<p class="${cls}">${rupees(final)}</p>`;
+}
+
 /* ---------------------------- cart --------------------------------- */
 // sessionStorage would be lost on the free tier's cold starts anyway, and the
 // bag must survive a page navigation, so it lives in localStorage.
@@ -17,7 +32,12 @@ const Cart = {
     const items = Cart.read();
     const line = items.find(i => i.id === p.id);
     if (line) line.qty = Math.min(10, line.qty + 1);
-    else items.push({ id: p.id, title: p.title, sku: p.sku, price: p.price, image: p.images?.[0] || '', qty: 1 });
+    else items.push({
+      id: p.id, title: p.title, sku: p.sku,
+      price: p.final_price ?? p.price,
+      list_price: p.list_price ?? p.price,
+      image: p.images?.[0] || '', qty: 1
+    });
     Cart.write(items);
   },
   setQty(id, qty) {
@@ -53,19 +73,18 @@ function tile(p) {
     : `<div class="noshot">Photo coming</div>`;
   const flag = p.stock <= 0
     ? '<span class="flag out">Sold — ask us</span>'
-    : (p.boost > 0 ? '<span class="flag">Featured</span>' : '');
+    : (p.discount_percent > 0 ? `<span class="flag sale">${p.discount_percent}% off</span>`
+      : (p.boost > 0 ? '<span class="flag">Featured</span>' : ''));
   const stars = p.rating_count > 0
     ? `<p class="stars">${'★'.repeat(Math.round(p.avg_rating))}${'☆'.repeat(5 - Math.round(p.avg_rating))}
        <small>${p.rating_count}</small></p>` : '';
-  const mrp = p.mrp > p.price ? `<del>${rupees(p.mrp)}</del>` : '';
-
   return `<a class="tile" href="/piece/${p.slug}">
     <div class="shot">${shot}${flag}</div>
     <div class="meta">
       <p class="sub">${esc(COLLECTION_LABEL[p.collection] || p.collection)}</p>
       <h3>${esc(p.title)}</h3>
       ${stars}
-      <p class="price">${rupees(p.price)}${mrp}</p>
+      ${priceHTML(p)}
     </div>
   </a>`;
 }
@@ -158,7 +177,9 @@ function paintBag() {
     Cart.setQty(l.id, l.qty - 1);
   });
 
+  const saved = items.reduce((s, i) => s + Math.max(0, (i.list_price || i.price) - i.price) * i.qty, 0);
   foot.innerHTML = `
+    ${saved > 0 ? `<div class="totals saved"><span>You save</span><span>${rupees(saved)}</span></div>` : ''}
     <div class="totals"><span>Total</span><span>${rupees(Cart.total())}</span></div>
     <div class="stack">
       <input class="field" id="cName" placeholder="Your name" autocomplete="name">
@@ -241,6 +262,14 @@ if (grid) {
   loadFacets(); load();
 }
 
+// The banner should never advertise an offer that is not actually applied.
+fetch('/api/settings').then(r => r.json()).then(({ store_discount }) => {
+  const bar = document.querySelector('.offerbar');
+  if (!bar) return;
+  if (store_discount > 0) bar.textContent = `Launch offer — ${store_discount}% off everything`;
+  else bar.remove();
+}).catch(() => {});
+
 // Guarded: a page without the drawer markup should still work.
 const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
 on('openBag', () => openBag(true));
@@ -249,4 +278,4 @@ on('scrim', () => openBag(false));
 document.addEventListener('keydown', e => { if (e.key === 'Escape') openBag(false); });
 try { paintBag(); } catch (err) { console.error('Bag render failed:', err); }
 
-window.SeWeaves = { Cart, openBag, rupees, esc, thumb, COLLECTION_LABEL };
+window.SeWeaves = { Cart, openBag, rupees, esc, thumb, COLLECTION_LABEL, priceHTML };

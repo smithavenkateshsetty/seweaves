@@ -200,3 +200,21 @@ select.field{appearance:none;cursor:pointer;
   animation:shim 1.4s infinite}
 @keyframes shim{to{background-position:-120% 0}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- discounts ---------- */
+.price del, .bigprice del{
+  color:var(--ivory-dim);font-size:.72em;margin-left:9px;opacity:.65;
+  text-decoration-thickness:1px;
+}
+.price .off, .bigprice .off{
+  display:inline-block;margin-left:9px;font-family:var(--engraved);
+  font-size:.5em;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--oxblood-deep);background:var(--gold-bright);padding:4px 9px;
+  vertical-align:middle;
+}
+.flag.sale{background:var(--gold-bright);color:var(--oxblood-deep)}
+.savenote{
+  font-family:var(--engraved);font-size:.6rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--gold);margin:.4em 0 0;
+}
+.totals.saved{color:var(--gold);border-bottom:1px solid rgba(201,162,87,.25);padding-bottom:10px}

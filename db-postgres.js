@@ -59,6 +59,8 @@ export async function migrate() {
     mrp          INTEGER DEFAULT 0,
     stock        INTEGER NOT NULL DEFAULT 1,
     images       JSONB NOT NULL DEFAULT '[]'::jsonb,
+    discount_type  TEXT NOT NULL DEFAULT 'none',
+    discount_value INTEGER NOT NULL DEFAULT 0,
     active       BOOLEAN NOT NULL DEFAULT TRUE,
     boost        INTEGER NOT NULL DEFAULT 0,
     views        INTEGER NOT NULL DEFAULT 0,
@@ -93,12 +95,24 @@ export async function migrate() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
 
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS sessions (
     token      TEXT PRIMARY KEY,
     expires_at TIMESTAMPTZ NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at);
   `);
+
+  // Added after the first release — live catalogues need the columns.
+  await pool.query(`
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_type  TEXT NOT NULL DEFAULT 'none';
+    ALTER TABLE products ADD COLUMN IF NOT EXISTS discount_value INTEGER NOT NULL DEFAULT 0;
+  `);
+
   return true;
 }
 

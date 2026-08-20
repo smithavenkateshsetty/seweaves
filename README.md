@@ -72,6 +72,29 @@ One score, in `db.js`:
 Set boost 1–3 on window pieces, 0 on the rest. Editable inline in the admin table.
 Reviews stay hidden until approved; approving is what moves the rating.
 
+## Discounts
+
+Two levels, and the product-specific one always wins — a piece you have
+deliberately marked down is never further reduced by a seasonal offer.
+
+**Store-wide.** Admin → Catalogue tab → *Store-wide discount*. Set a percentage
+and it applies to every piece that has no discount of its own. Set it to 0 and
+the offer banner disappears from the shop, so the site never advertises a
+discount that is not actually being applied.
+
+**Per piece.** In the add/edit form, choose *Percentage off* or *Flat amount off*
+and enter a value. A live hint under the field shows exactly what the customer
+will pay before you save.
+
+The customer sees the original price struck through, the new price, and a
+percentage badge on both the grid tile and the product page, plus the amount
+saved in the bag.
+
+Every price is recomputed server-side in `pricing.js`. `/api/orders` calls the
+same function before writing the order, so editing prices in the browser
+achieves nothing. Discounts are capped at 90% — a 100% discount is always a
+mistake.
+
 ## Photos
 
 Up to 8 per piece. Stored twice — 1200×1600 for the product page, 500×667 for the

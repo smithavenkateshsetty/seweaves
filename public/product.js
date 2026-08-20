@@ -9,6 +9,7 @@ const COLLECTION_LABEL = SW.COLLECTION_LABEL || {
   bridal: 'Bridal specials', party: 'Party wear', festive: 'Festive collection',
   designer: 'Designer wear', blouse: 'Embroidery blouses'
 };
+const priceHTML = SW.priceHTML || (p => `<p class="bigprice">${rupees(p.final_price ?? p.price)}</p>`);
 const Cart = SW.Cart || null;
 const openBag = SW.openBag || (() => {});
 const slug = location.pathname.split('/').filter(Boolean).pop();
@@ -190,8 +191,8 @@ function render(p) {
       <p class="eyebrow">${esc(COLLECTION_LABEL[p.collection] || p.collection)}</p>
       <h1 class="h1">${esc(p.title)}</h1>
       ${p.rating_count ? `<p class="stars">${stars(p.avg_rating)} <small>${p.avg_rating} from ${p.rating_count} ${p.rating_count === 1 ? 'buyer' : 'buyers'}</small></p>` : ''}
-      <p class="bigprice">${rupees(p.price)}
-        ${p.mrp > p.price ? `<del style="font-size:.5em;color:var(--ivory-dim)">${rupees(p.mrp)}</del>` : ''}</p>
+      ${priceHTML(p, true)}
+      ${p.discount_percent > 0 ? `<p class="savenote">You save ${rupees((p.list_price ?? p.price) - (p.final_price ?? p.price))}${p.discount_source === 'store' ? ' with the launch offer' : ' on this piece'}</p>` : ''}
       ${p.description ? `<p class="lede" style="margin-top:18px">${esc(p.description)}</p>` : ''}
 
       <ul class="specs">

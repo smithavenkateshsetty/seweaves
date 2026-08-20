@@ -121,6 +121,8 @@ export async function migrate() {
     mrp          INTEGER DEFAULT 0,
     stock        INTEGER NOT NULL DEFAULT 1,
     images       TEXT NOT NULL DEFAULT '[]',
+    discount_type  TEXT NOT NULL DEFAULT 'none',
+    discount_value INTEGER NOT NULL DEFAULT 0,
     active       INTEGER NOT NULL DEFAULT 1,
     boost        INTEGER NOT NULL DEFAULT 0,
     views        INTEGER NOT NULL DEFAULT 0,
@@ -155,11 +157,24 @@ export async function migrate() {
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS sessions (
     token      TEXT PRIMARY KEY,
     expires_at TEXT NOT NULL
   );
   `);
+
+  // Added after the first release — existing catalogues need the columns.
+  const cols = sqlite.prepare('PRAGMA table_info(products)').all().map(c => c.name);
+  if (!cols.includes('discount_type'))
+    sqlite.exec("ALTER TABLE products ADD COLUMN discount_type TEXT NOT NULL DEFAULT 'none'");
+  if (!cols.includes('discount_value'))
+    sqlite.exec('ALTER TABLE products ADD COLUMN discount_value INTEGER NOT NULL DEFAULT 0');
+
   return true;
 }
 
