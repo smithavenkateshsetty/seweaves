@@ -28,15 +28,16 @@ function priceHTML(p, big = false) {
 const Cart = {
   read() { try { return JSON.parse(localStorage.getItem('sw_bag') || '[]'); } catch { return []; } },
   write(items) { localStorage.setItem('sw_bag', JSON.stringify(items)); paintBag(); },
-  add(p) {
+  add(p, qty = 1) {
     const items = Cart.read();
+    const cap = Math.min(10, Math.max(1, p.stock || 10));
     const line = items.find(i => i.id === p.id);
-    if (line) line.qty = Math.min(10, line.qty + 1);
+    if (line) line.qty = Math.min(cap, line.qty + qty);
     else items.push({
       id: p.id, title: p.title, sku: p.sku,
       price: p.final_price ?? p.price,
       list_price: p.list_price ?? p.price,
-      image: p.images?.[0] || '', qty: 1
+      image: p.images?.[0] || '', qty: Math.min(cap, qty)
     });
     Cart.write(items);
   },
@@ -64,29 +65,87 @@ function skeletons(n = 8) {
 }
 
 function tile(p) {
-  // Second photo layered underneath and revealed on hover — for a saree the
-  // pallu or the border is usually the shot that actually sells it.
+  // A tile can no longer be one big <a> — buttons cannot live inside a link.
+  // The photo and title link through; the buying controls sit outside it.
   const shot = p.images[0]
     ? `<img src="${thumb(p.images[0])}" alt="${esc(p.title)}" loading="lazy" width="500" height="667">
        ${p.images[1] ? `<img class="alt" src="${thumb(p.images[1])}" alt="" loading="lazy">` : ''}
        ${p.images.length > 1 ? `<span class="shotcount">${p.images.length} photos</span>` : ''}`
     : `<div class="noshot">Photo coming</div>`;
+
   const flag = p.stock <= 0
     ? '<span class="flag out">Sold — ask us</span>'
     : (p.discount_percent > 0 ? `<span class="flag sale">${p.discount_percent}% off</span>`
       : (p.boost > 0 ? '<span class="flag">Featured</span>' : ''));
+
   const stars = p.rating_count > 0
     ? `<p class="stars">${'★'.repeat(Math.round(p.avg_rating))}${'☆'.repeat(5 - Math.round(p.avg_rating))}
        <small>${p.rating_count}</small></p>` : '';
-  return `<a class="tile" href="/piece/${p.slug}">
-    <div class="shot">${shot}${flag}</div>
+
+  const desc = p.description
+    ? `<p class="desc">${esc(p.description)}</p>` : '';
+
+  const buy = p.stock > 0
+    ? `<div class="tilebuy">
+         <div class="qty" data-qty="${p.id}">
+           <button type="button" data-step="-1" aria-label="Fewer">−</button>
+           <span data-count="${p.id}">1</span>
+           <button type="button" data-step="1" aria-label="More">+</button>
+         </div>
+         <button type="button" class="btn sm addbtn" data-add="${p.id}">Add to bag</button>
+       </div>`
+    : `<div class="tilebuy">
+         <a class="btn ghost sm wide" href="/piece/${p.slug}">Ask about this piece</a>
+       </div>`;
+
+  return `<article class="tile" data-tile="${p.id}">
+    <a class="shotlink" href="/piece/${p.slug}" aria-label="${esc(p.title)}">
+      <div class="shot">${shot}${flag}</div>
+    </a>
     <div class="meta">
       <p class="sub">${esc(COLLECTION_LABEL[p.collection] || p.collection)}</p>
-      <h3>${esc(p.title)}</h3>
+      <h3><a href="/piece/${p.slug}">${esc(p.title)}</a></h3>
       ${stars}
       ${priceHTML(p)}
+      ${desc}
+      ${buy}
     </div>
-  </a>`;
+  </article>`;
+}
+
+/* Quantity chosen on a tile, held only until it goes in the bag. */
+const tileQty = new Map();
+
+function wireTiles() {
+  grid.querySelectorAll('[data-qty]').forEach(box => {
+    const id = +box.dataset.qty;
+    box.querySelectorAll('[data-step]').forEach(btn => btn.onclick = () => {
+      const p = loaded.find(x => x.id === id);
+      const cap = Math.min(10, Math.max(1, p?.stock || 10));
+      const next = Math.max(1, Math.min(cap, (tileQty.get(id) || 1) + (+btn.dataset.step)));
+      tileQty.set(id, next);
+      const label = grid.querySelector(`[data-count="${id}"]`);
+      if (label) label.textContent = next;
+    });
+  });
+
+  grid.querySelectorAll('[data-add]').forEach(btn => btn.onclick = () => {
+    const id = +btn.dataset.add;
+    const p = loaded.find(x => x.id === id);
+    if (!p) return;
+    Cart.add(p, tileQty.get(id) || 1);
+
+    // Confirm in place rather than throwing the drawer open — people add
+    // several pieces in a row and a drawer every time gets tiresome.
+    const original = btn.textContent;
+    btn.textContent = 'Added ✓';
+    btn.classList.add('added');
+    setTimeout(() => { btn.textContent = original; btn.classList.remove('added'); }, 1600);
+
+    tileQty.set(id, 1);
+    const label = grid.querySelector(`[data-count="${id}"]`);
+    if (label) label.textContent = 1;
+  });
 }
 
 async function load(append = false) {
@@ -111,6 +170,7 @@ async function load(append = false) {
       return;
     }
     grid.innerHTML = loaded.map(tile).join('');
+    wireTiles();
     $('count').textContent = `${data.total} piece${data.total === 1 ? '' : 's'}`;
     $('more').hidden = loaded.length >= data.total;
   } catch {
@@ -213,7 +273,9 @@ async function placeOrder() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not send the enquiry.');
-    msg.innerHTML = `<p class="note good">Enquiry ${data.ref} is with us. Opening WhatsApp…</p>`;
+    msg.innerHTML = (data.trimmed
+      ? `<p class="note">${esc(data.trimmed.join('. '))} — quantities adjusted.</p>` : '')
+      + `<p class="note good">Enquiry ${data.ref} is with us. Opening WhatsApp…</p>`;
     localStorage.removeItem('sw_bag');
     window.open(data.whatsapp, '_blank', 'noopener');
     setTimeout(paintBag, 2500);

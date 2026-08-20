@@ -108,8 +108,11 @@ select.field{appearance:none;cursor:pointer;
 .grid{display:grid;gap:clamp(14px,2vw,26px);
   grid-template-columns:repeat(auto-fill,minmax(228px,1fr))}
 .tile{position:relative;border:var(--frame);background:rgba(90,26,33,.35);
-  text-decoration:none;display:flex;flex-direction:column;
+  display:flex;flex-direction:column;
   transition:border-color .25s,transform .25s,background .25s}
+.tile .shotlink{display:block;text-decoration:none}
+.tile h3 a{text-decoration:none;color:inherit}
+.tile h3 a:hover{color:var(--gold-bright)}
 .tile:hover{border-color:var(--gold);transform:translateY(-3px);background:rgba(90,26,33,.65)}
 .tile .shot{aspect-ratio:3/4;overflow:hidden;background:var(--oxblood-deep);position:relative}
 .tile .shot img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease,opacity .4s ease}
@@ -218,3 +221,32 @@ select.field{appearance:none;cursor:pointer;
   text-transform:uppercase;color:var(--gold);margin:.4em 0 0;
 }
 .totals.saved{color:var(--gold);border-bottom:1px solid rgba(201,162,87,.25);padding-bottom:10px}
+
+/* ---------- tile description and buying controls ---------- */
+.tile .meta{display:flex;flex-direction:column;flex:1}
+.tile .desc{
+  margin:10px 0 0;color:var(--ivory-dim);font-size:.88rem;line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.tilebuy{
+  display:flex;gap:10px;align-items:center;margin-top:auto;padding-top:16px;
+}
+.tilebuy .btn{flex:1;padding:11px 12px}
+.tilebuy .btn.wide{flex:1 1 100%}
+.qty{
+  display:flex;align-items:center;border:1px solid rgba(201,162,87,.5);flex:none;
+}
+.qty button{
+  width:30px;height:34px;background:none;border:0;cursor:pointer;line-height:1;
+  color:var(--gold-bright);font-size:1rem;font-family:var(--body);
+}
+.qty button:hover{background:rgba(201,162,87,.2)}
+.qty span{
+  min-width:26px;text-align:center;font-size:.92rem;color:var(--ivory);
+}
+.addbtn.added{background:var(--ivory);border-color:var(--ivory)}
+@media(max-width:400px){
+  .tilebuy{flex-wrap:wrap}
+  .tilebuy .btn{flex:1 1 100%}
+}

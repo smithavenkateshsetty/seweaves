@@ -206,8 +206,15 @@ function render(p) {
       </ul>
 
       <div class="stack">
-        <button class="btn wide" id="add" ${p.stock <= 0 ? 'disabled' : ''}>
-          ${p.stock > 0 ? 'Add to bag' : 'Currently sold'}</button>
+        <div class="tilebuy" style="padding-top:0">
+          ${p.stock > 0 ? `<div class="qty" id="qtyBox">
+            <button type="button" data-step="-1" aria-label="Fewer">−</button>
+            <span id="qtyCount">1</span>
+            <button type="button" data-step="1" aria-label="More">+</button>
+          </div>` : ''}
+          <button class="btn" id="add" ${p.stock <= 0 ? 'disabled' : ''}>
+            ${p.stock > 0 ? 'Add to bag' : 'Currently sold'}</button>
+        </div>
         <p class="muted" style="font-size:.85rem;margin:0">
           Blouse stitched to your measurements on bridal orders. Alterations in-house, 2–3 days.</p>
       </div>
@@ -240,10 +247,18 @@ function render(p) {
 
   wireGallery();
 
+  let qty = 1;
+  const cap = Math.min(10, Math.max(1, p.stock || 10));
+  document.querySelectorAll('#qtyBox [data-step]').forEach(b => b.onclick = () => {
+    qty = Math.max(1, Math.min(cap, qty + (+b.dataset.step)));
+    document.getElementById('qtyCount').textContent = qty;
+  });
+
   const add = document.getElementById('add');
   if (add) add.onclick = () => {
     if (!Cart) { alert('The bag is unavailable — please reload the page.'); return; }
-    Cart.add(p); openBag(true);
+    Cart.add(p, qty);
+    openBag(true);
   };
 
   document.getElementById('sendReview').onclick = async () => {

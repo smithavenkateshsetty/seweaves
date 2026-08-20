@@ -233,18 +233,23 @@ app.post('/api/orders', wrap(async (req, res) => {
   if (!ids.length) return res.status(400).json({ error: 'Those pieces are no longer available.' });
 
   const rows = await q(
-    `SELECT id, sku, title, price, discount_type, discount_value
+    `SELECT id, sku, title, price, stock, discount_type, discount_value
      FROM products WHERE id = ANY(@ids) AND active = TRUE`, { ids });
   const byId = new Map(rows.map(r => [r.id, r]));
   const discount = await storeDiscount();
 
   const items = [];
+  const trimmed = [];
   let total = 0;
   let saved = 0;
   for (const line of cart.slice(0, 30)) {
     const p = byId.get(parseInt(line.id));
     if (!p) continue;
-    const qty = Math.max(1, Math.min(10, parseInt(line.qty) || 1));
+    // Never sell more than is on the rail, whatever the browser asked for.
+    const wanted = Math.max(1, Math.min(10, parseInt(line.qty) || 1));
+    const qty = Math.min(wanted, Math.max(0, p.stock));
+    if (qty < 1) continue;
+    if (qty < wanted) trimmed.push(`${p.title}: only ${qty} left`);
     // Recomputed here, never taken from the browser.
     const { list_price, final_price, discount_percent } = priceOf(p, discount);
     items.push({
@@ -288,6 +293,7 @@ app.post('/api/orders', wrap(async (req, res) => {
 
   res.json({
     ok: true, ref, total, saved,
+    trimmed: trimmed.length ? trimmed : undefined,
     whatsapp: `https://wa.me/${SHOP_WHATSAPP}?text=${encodeURIComponent(message)}`
   });
 }));
