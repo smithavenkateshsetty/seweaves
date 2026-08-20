@@ -334,7 +334,10 @@ fetch('/api/shop').then(r => r.json()).then(({ whatsapp, display, configured }) 
 
   document.querySelectorAll('[data-wa]').forEach(el => {
     el.href = href;
-    if (el.dataset.wa === 'number') el.textContent = display;
+    if (el.dataset.wa === 'number') {
+      // Header shows the number; the footer link reads as an action.
+      el.textContent = el.closest('.headwa') ? display : `Place order on WhatsApp · ${display}`;
+    }
   });
 
   const float = document.getElementById('waFloat');
