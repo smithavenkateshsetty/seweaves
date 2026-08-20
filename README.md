@@ -95,6 +95,25 @@ same function before writing the order, so editing prices in the browser
 achieves nothing. Discounts are capped at 90% — a 100% discount is always a
 mistake.
 
+## Inline editing
+
+The catalogue table is fully editable — title, price, discount, stock, boost and
+live/hidden, all in the row. Changes accumulate locally with a gold marker on each
+changed row, and a sticky bar shows how many pieces are pending. **Save all
+changes** writes the lot in one request. Enter saves, Escape discards.
+
+The *Customer pays* column recalculates as you type, using the same rules the
+server applies, so you can see the effect of a discount before committing to it.
+
+The whole batch is validated before anything is written, and the writes share one
+transaction. A bad value in row seven means rows one to six are not written
+either — you get one error and an unchanged catalogue, rather than a half-applied
+edit you have to unpick. Values that are merely out of range (boost 99, a 150%
+discount) are clamped rather than rejected.
+
+The **Photos** button still opens the full form, which is the only place to change
+images, SKU, collection and description.
+
 ## Photos
 
 Up to 8 per piece. Stored twice — 1200×1600 for the product page, 500×667 for the

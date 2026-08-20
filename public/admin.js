@@ -41,56 +41,171 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
 function goTab(name) { document.querySelector(`.tabs button[data-tab="${name}"]`).click(); }
 
 /* ---------------------------- catalogue ---------------------------- */
+/* ------------------------ inline editing ---------------------------- *
+ * Every cell in the catalogue table is editable. Changes are held locally
+ * and written in one batch, so adjusting twenty prices is one request and
+ * one undo, not twenty of each.
+ * -------------------------------------------------------------------- */
+const dirty = new Map();          // id -> { field: value }
+let rows = [];                    // last loaded rows, for previewing prices
+let storeDiscountPct = 0;
+
+function markDirty(id, field, value) {
+  const original = rows.find(r => r.id === id);
+  const changes = dirty.get(id) || {};
+
+  // Reverting a cell by hand should clear it, not queue a no-op write.
+  if (original && String(original[field] ?? '') === String(value)) delete changes[field];
+  else changes[field] = value;
+
+  if (Object.keys(changes).length) dirty.set(id, changes);
+  else dirty.delete(id);
+
+  const tr = document.querySelector(`tr[data-row="${id}"]`);
+  if (tr) tr.classList.toggle('dirty', dirty.has(id));
+  paintPreview(id);
+  paintSaveBar();
+}
+
+function currentValue(p, field) {
+  const changes = dirty.get(p.id);
+  return changes && field in changes ? changes[field] : p[field];
+}
+
+// Recompute the customer-facing price as you type, using the same rules
+// the server applies on save.
+function paintPreview(id) {
+  const p = rows.find(r => r.id === id);
+  const cell = document.querySelector(`[data-preview="${id}"]`);
+  if (!p || !cell) return;
+
+  const price = parseInt(currentValue(p, 'price')) || 0;
+  const type = currentValue(p, 'discount_type') || 'none';
+  const value = parseInt(currentValue(p, 'discount_value')) || 0;
+
+  let final = price, source = 'none';
+  if (type === 'percent' && value > 0) { final = Math.round(price * (1 - Math.min(90, value) / 100)); source = 'piece'; }
+  else if (type === 'amount' && value > 0) { final = Math.max(Math.round(price * 0.1), price - value); source = 'piece'; }
+  else if (storeDiscountPct > 0) { final = Math.round(price * (1 - storeDiscountPct / 100)); source = 'store'; }
+
+  const pct = price > 0 && final < price ? Math.round((1 - final / price) * 100) : 0;
+  cell.innerHTML = pct > 0
+    ? `<span class="final">${rupees(final)}</span><span class="was">${rupees(price)}</span>
+       <span class="offpill">${pct}% ${source}</span>`
+    : `<span class="final">${rupees(price)}</span>`;
+}
+
+function paintSaveBar() {
+  const bar = $('saveBar');
+  if (!bar) return;
+  const n = dirty.size;
+  bar.classList.toggle('show', n > 0);
+  const label = $('dirtyCount');
+  if (label) label.textContent = `${n} piece${n === 1 ? '' : 's'} changed`;
+}
+
 async function loadProducts() {
-  const q = $('pSearch').value.trim();
-  const data = await api('/api/admin/products?q=' + encodeURIComponent(q));
+  const term = $('pSearch').value.trim();
+  const data = await api('/api/admin/products?q=' + encodeURIComponent(term));
+  rows = data.items;
+  storeDiscountPct = data.store_discount || 0;
+  dirty.clear();
+  paintSaveBar();
   $('pCount').textContent = `${data.total} piece${data.total === 1 ? '' : 's'}`;
 
-  if (!data.items.length) {
-    $('pRows').innerHTML = `<tr><td colspan="9" class="empty">
+  if (!rows.length) {
+    $('pRows').innerHTML = `<tr><td colspan="10" class="empty">
       Nothing in the catalogue yet. Add your first piece.</td></tr>`;
     return;
   }
 
-  $('pRows').innerHTML = data.items.map(p => `<tr>
+  $('pRows').innerHTML = rows.map(p => `<tr data-row="${p.id}">
     <td>${p.images[0] ? `<img src="${thumb(p.images[0])}" alt="">` : ''}</td>
-    <td><b>${esc(p.title)}</b><br><span class="muted" style="font-size:.8rem">${esc(p.sku)}</span></td>
-    <td>${LABEL[p.collection] || p.collection}</td>
-    <td>${p.discount_percent > 0
-        ? `<span class="final">${rupees(p.final_price)}</span><span class="was">${rupees(p.list_price)}</span>`
-        : rupees(p.price)}</td>
-    <td>${p.discount_percent > 0
-        ? `<span class="offpill">${p.discount_percent}% ${p.discount_source === 'store' ? 'store' : 'piece'}</span>`
-        : '<span class="muted">—</span>'}</td>
-    <td>${p.stock > 0 ? p.stock : '<span class="muted">Sold</span>'}</td>
-    <td><input class="field" style="width:64px;padding:5px 8px" type="number"
-         min="0" max="10" value="${p.boost}" data-boost="${p.id}"></td>
+    <td>
+      <input class="cell wide" value="${esc(p.title)}" data-f="title" data-id="${p.id}">
+      <span class="muted" style="font-size:.76rem">${esc(p.sku)} · ${LABEL[p.collection] || p.collection}</span>
+    </td>
+    <td><input class="cell num" type="number" min="1" value="${p.price}" data-f="price" data-id="${p.id}"></td>
+    <td>
+      <select class="cell" data-f="discount_type" data-id="${p.id}">
+        <option value="none"    ${p.discount_type === 'none' || !p.discount_type ? 'selected' : ''}>Store</option>
+        <option value="percent" ${p.discount_type === 'percent' ? 'selected' : ''}>% off</option>
+        <option value="amount"  ${p.discount_type === 'amount' ? 'selected' : ''}>₹ off</option>
+      </select>
+      <input class="cell num" type="number" min="0" value="${p.discount_value || 0}"
+             data-f="discount_value" data-id="${p.id}">
+    </td>
+    <td data-preview="${p.id}"></td>
+    <td><input class="cell num" type="number" min="0" value="${p.stock}" data-f="stock" data-id="${p.id}"></td>
+    <td><input class="cell num" type="number" min="0" max="10" value="${p.boost}" data-f="boost" data-id="${p.id}"></td>
     <td class="muted">${Math.round(p.rank_score)}</td>
-    <td><span class="pill ${p.active ? '' : 'off'}">${p.active ? 'Live' : 'Hidden'}</span></td>
+    <td><label class="livebox"><input type="checkbox" ${p.active ? 'checked' : ''}
+        data-f="active" data-id="${p.id}"><span></span></label></td>
     <td style="white-space:nowrap">
-      <button class="btn ghost sm" data-edit="${p.id}">Edit</button>
+      <button class="btn ghost sm" data-edit="${p.id}">Photos</button>
       <button class="btn ghost sm" data-del="${p.id}">Delete</button></td>
   </tr>`).join('');
 
-  // Boost is edited inline — it's the control you'll reach for most often.
-  $('pRows').querySelectorAll('[data-boost]').forEach(inp => inp.onchange = async () => {
-    const p = data.items.find(x => x.id === +inp.dataset.boost);
-    await api(`/api/admin/products/${p.id}`, {
-      method: 'PUT',
-      body: JSON.stringify({ ...p, boost: +inp.value, images: p.images,
-        discount_type: p.discount_type, discount_value: p.discount_value })
-    });
-    loadProducts();
+  rows.forEach(p => paintPreview(p.id));
+
+  $('pRows').querySelectorAll('[data-f]').forEach(el => {
+    const handler = () => markDirty(+el.dataset.id, el.dataset.f,
+      el.type === 'checkbox' ? el.checked : el.value);
+    el.oninput = handler;
+    el.onchange = handler;
+    // Enter saves everything; Escape abandons the batch.
+    el.onkeydown = e => {
+      if (e.key === 'Enter') { e.preventDefault(); saveAll(); }
+      if (e.key === 'Escape') { e.preventDefault(); loadProducts(); }
+    };
   });
+
   $('pRows').querySelectorAll('[data-edit]').forEach(b => b.onclick = () =>
-    startEdit(data.items.find(x => x.id === +b.dataset.edit)));
+    startEdit(rows.find(x => x.id === +b.dataset.edit)));
+
   $('pRows').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
-    const p = data.items.find(x => x.id === +b.dataset.del);
+    const p = rows.find(x => x.id === +b.dataset.del);
     if (!confirm(`Delete "${p.title}"? This cannot be undone.`)) return;
     await api(`/api/admin/products/${p.id}`, { method: 'DELETE' });
     refreshAll();
   });
 }
+
+async function saveAll() {
+  if (!dirty.size) return;
+  const btn = $('saveAll'), msg = $('saveBarMsg');
+  const updates = [...dirty.entries()].map(([id, changes]) => ({ id, ...changes }));
+
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const res = await api('/api/admin/products/bulk', {
+      method: 'PATCH', body: JSON.stringify({ updates })
+    });
+    msg.innerHTML = '';
+    await loadProducts();
+    await loadStats();
+    $('discountMsg').innerHTML =
+      `<p class="note good">Saved ${res.updated} piece${res.updated === 1 ? '' : 's'}.</p>`;
+    setTimeout(() => { $('discountMsg').innerHTML = ''; }, 4000);
+  } catch (e) {
+    // Nothing was written — the server validates the whole batch first.
+    msg.innerHTML = `<p class="note bad">${esc(e.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save all changes';
+  }
+}
+
+const saveAllBtn = $('saveAll');
+if (saveAllBtn) saveAllBtn.onclick = saveAll;
+const discardBtn = $('discardAll');
+if (discardBtn) discardBtn.onclick = () => loadProducts();
+
+// Losing twenty edits to a stray click would be miserable.
+window.addEventListener('beforeunload', e => {
+  if (dirty.size) { e.preventDefault(); e.returnValue = ''; }
+});
 
 $('pSearch').oninput = (() => {
   let t; return () => { clearTimeout(t); t = setTimeout(loadProducts, 300); };

@@ -379,6 +379,93 @@ app.put('/api/admin/products/:id', requireAdmin, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+/* Batch inline edits from the catalogue table.
+ *
+ * Everything is validated before anything is written, and the writes share one
+ * connection inside a transaction, so a bad row in the middle cannot leave the
+ * catalogue half-updated. */
+const INLINE_FIELDS = ['title', 'price', 'stock', 'boost', 'active',
+                       'discount_type', 'discount_value'];
+
+app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
+  const updates = Array.isArray(req.body.updates) ? req.body.updates.slice(0, 200) : [];
+  if (!updates.length) return res.json({ ok: true, updated: 0 });
+
+  const ids = updates.map(u => parseInt(u.id)).filter(Boolean);
+  const existing = await q(
+    'SELECT id, price FROM products WHERE id = ANY(@ids)', { ids });
+  const priceOfId = new Map(existing.map(r => [r.id, r.price]));
+
+  // ---- validate everything first ----
+  const problems = [];
+  const planned = [];
+
+  for (const u of updates) {
+    const id = parseInt(u.id);
+    if (!priceOfId.has(id)) { problems.push(`Piece ${u.id} no longer exists.`); continue; }
+
+    const set = {};
+    for (const f of INLINE_FIELDS) if (u[f] !== undefined) set[f] = u[f];
+    if (!Object.keys(set).length) continue;
+
+    if ('title' in set) {
+      set.title = String(set.title).trim();
+      if (!set.title) { problems.push(`Piece ${id}: title cannot be empty.`); continue; }
+    }
+    if ('price' in set) {
+      set.price = parseInt(set.price) || 0;
+      if (set.price <= 0) { problems.push(`Piece ${id}: price must be above zero.`); continue; }
+    }
+    if ('stock' in set) set.stock = Math.max(0, parseInt(set.stock) || 0);
+    if ('boost' in set) set.boost = Math.max(0, Math.min(10, parseInt(set.boost) || 0));
+    if ('active' in set) set.active = Boolean(set.active);
+
+    if ('discount_type' in set) {
+      set.discount_type = ['percent', 'amount'].includes(set.discount_type)
+        ? set.discount_type : 'none';
+    }
+    if ('discount_value' in set) set.discount_value = Math.max(0, parseInt(set.discount_value) || 0);
+
+    // Clamp the discount against whichever price is in play after this edit.
+    const effectivePrice = 'price' in set ? set.price : priceOfId.get(id);
+    const type = set.discount_type;
+    if (type === 'percent' && 'discount_value' in set) {
+      set.discount_value = Math.min(MAX_DISCOUNT, set.discount_value);
+    }
+    if (type === 'amount' && 'discount_value' in set && set.discount_value >= effectivePrice) {
+      set.discount_value = Math.max(0, effectivePrice - 1);
+    }
+    if (type === 'none') set.discount_value = 0;
+
+    planned.push({ id, set });
+  }
+
+  if (problems.length) return res.status(400).json({ error: problems.join(' ') });
+
+  // ---- apply ----
+  const client = await pool.connect();
+  let updated = 0;
+  try {
+    await client.query('BEGIN');
+    for (const { id, set } of planned) {
+      const cols = Object.keys(set);
+      const clause = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
+      const values = cols.map(c => set[c]);
+      await client.query(
+        `UPDATE products SET ${clause} WHERE id = $${cols.length + 1}`, [...values, id]);
+      updated++;
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  res.json({ ok: true, updated });
+}));
+
 app.delete('/api/admin/products/:id', requireAdmin, wrap(async (req, res) => {
   const id = parseInt(req.params.id);
   const row = await one('SELECT images FROM products WHERE id = @id', { id });
