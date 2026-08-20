@@ -294,3 +294,25 @@ select.field{appearance:none;cursor:pointer;
 .wafloat svg{width:27px;height:27px}
 .wafloat[hidden]{display:none}
 @media(max-width:600px){.wafloat{right:14px;bottom:14px;width:48px;height:48px}}
+
+/* ---------- header WhatsApp ---------- */
+.headwa{
+  display:inline-flex;align-items:center;gap:10px;text-decoration:none;
+  color:var(--gold-bright);border:1px solid rgba(201,162,87,.55);
+  padding:8px 15px;white-space:nowrap;transition:background .2s,border-color .2s;
+}
+.headwa:hover{background:rgba(201,162,87,.16);border-color:var(--gold)}
+.headwa .waicon{width:21px;height:21px;flex:none}
+.watext{display:flex;flex-direction:column;line-height:1.25}
+.walabel{
+  font-family:var(--engraved);font-size:.52rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--gold);
+}
+.wanum{font-family:var(--body);font-size:.95rem;color:var(--gold-bright)}
+
+/* Phones: the number would crowd out the bag, so show the icon alone. */
+@media(max-width:860px){
+  .headwa .watext{display:none}
+  .headwa{padding:9px 11px;gap:0}
+  .headwa .waicon{width:23px;height:23px}
+}
