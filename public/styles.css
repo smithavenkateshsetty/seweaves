@@ -250,3 +250,47 @@ select.field{appearance:none;cursor:pointer;
   .tilebuy{flex-wrap:wrap}
   .tilebuy .btn{flex:1 1 100%}
 }
+
+/* ---------- hero ---------- */
+.hero{
+  text-align:center;
+  padding:clamp(26px,4.5vw,52px) var(--gut) clamp(18px,2.5vw,26px);
+}
+.hero-title{
+  font-family:var(--display);font-weight:400;
+  font-size:clamp(2.1rem,6.4vw,4.2rem);
+  line-height:1.02;letter-spacing:-.01em;
+  color:var(--gold-bright);
+  margin:0;
+  text-wrap:balance;
+}
+.hero-sub{
+  font-family:var(--engraved);
+  font-size:clamp(.56rem,1.5vw,.7rem);
+  letter-spacing:.24em;text-transform:uppercase;
+  color:var(--gold);
+  margin:.9em 0 0;
+}
+
+/* ---------- WhatsApp contact ---------- */
+.footwa a{
+  display:inline-flex;align-items:center;gap:9px;text-decoration:none;
+  color:var(--gold-bright);border-bottom:1px solid rgba(201,162,87,.5);
+  padding-bottom:2px;letter-spacing:.1em;
+}
+.footwa a:hover{color:var(--ivory)}
+.waicon{width:15px;height:15px;flex:none}
+
+.wafloat{
+  position:fixed;right:18px;bottom:18px;z-index:45;
+  width:52px;height:52px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--gold-bright);color:var(--oxblood-deep);
+  border:1px solid var(--gold);text-decoration:none;
+  box-shadow:0 4px 16px rgba(20,3,6,.5);
+  transition:transform .2s;
+}
+.wafloat:hover{transform:translateY(-3px)}
+.wafloat svg{width:27px;height:27px}
+.wafloat[hidden]{display:none}
+@media(max-width:600px){.wafloat{right:14px;bottom:14px;width:48px;height:48px}}

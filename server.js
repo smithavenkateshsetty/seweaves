@@ -189,7 +189,18 @@ app.get('/api/products', wrap(async (req, res) => {
 }));
 
 app.get('/api/facets', wrap(async (_req, res) => res.json(await facets())));
-app.get('/api/shop', (_req, res) => res.json({ whatsapp: SHOP_WHATSAPP }));
+app.get('/api/shop', (_req, res) => {
+  // 919807338745 -> +91 98073 38745, which is how an Indian customer reads it.
+  const digits = SHOP_WHATSAPP.replace(/\D/g, '');
+  const display = /^91\d{10}$/.test(digits)
+    ? `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`
+    : `+${digits}`;
+  res.json({
+    whatsapp: SHOP_WHATSAPP,
+    display,
+    configured: !SHOP_WHATSAPP.includes('X')
+  });
+});
 
 const viewed = new Map();   // per-process throttle so refreshes don't inflate rank
 app.get('/api/products/:slug', wrap(async (req, res) => {

@@ -324,6 +324,23 @@ if (grid) {
   loadFacets(); load();
 }
 
+/* The shop's WhatsApp number, shown in the footer and as a floating button.
+ * Most visitors want to ask a question long before they fill a bag. */
+fetch('/api/shop').then(r => r.json()).then(({ whatsapp, display, configured }) => {
+  if (!configured) return;   // never advertise a placeholder number
+
+  const href = `https://wa.me/${whatsapp}?text=${
+    encodeURIComponent('Hello SeWeaves, I saw your shop online and wanted to ask about')}`;
+
+  document.querySelectorAll('[data-wa]').forEach(el => {
+    el.href = href;
+    if (el.dataset.wa === 'number') el.textContent = display;
+  });
+
+  const float = document.getElementById('waFloat');
+  if (float) { float.href = href; float.hidden = false; }
+}).catch(() => {});
+
 // The banner should never advertise an offer that is not actually applied.
 fetch('/api/settings').then(r => r.json()).then(({ store_discount }) => {
   const bar = document.querySelector('.offerbar');
