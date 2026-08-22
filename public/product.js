@@ -68,7 +68,7 @@ function galleryMarkup() {
     <div class="stage" id="stage" tabindex="0">
       <img id="mainShot" src="${shots[0]}" alt="Photo 1">
       ${arrows}
-      <span class="zoomhint">Hover to zoom · click to enlarge</span>
+      <span class="zoomhint">Hover to zoom · click for full screen</span>
     </div>
   </div>`;
 }
@@ -109,7 +109,7 @@ function wireGallery() {
       const x = ((e.clientX - r.left) / r.width) * 100;
       const y = ((e.clientY - r.top) / r.height) * 100;
       img.style.transformOrigin = `${x}% ${y}%`;
-      img.style.transform = 'scale(2.2)';
+      img.style.transform = 'scale(2.6)';
     });
     stage.addEventListener('mouseleave', () => {
       stage.classList.remove('zooming');
@@ -146,37 +146,156 @@ function wireGallery() {
   shots.forEach(s => { const i = new Image(); i.src = s; });
 }
 
-/* ----------------------------- lightbox ---------------------------- */
+/* ------------------------- fullscreen viewer ------------------------ *
+ * Wheel and pinch zoom up to 6x, drag to pan, double-tap to toggle. The
+ * stored image is 2000px on the long edge, so at 3x a customer is looking
+ * at real thread rather than an upscaled blur.
+ * -------------------------------------------------------------------- */
 const lb = document.getElementById('lightbox');
-function paintLightbox() {
-  const img = document.getElementById('lbImg');
-  if (!img) return;
-  img.src = shots[current];
-  document.getElementById('lbImg').alt = `Photo ${current + 1}`;
-  document.getElementById('lbCount').textContent = `${current + 1} of ${shots.length}`;
+const lbStage = document.getElementById('lbStage');
+const lbImg = document.getElementById('lbImg');
+
+const MIN_SCALE = 1, MAX_SCALE = 6;
+let scale = 1, tx = 0, ty = 0;
+
+function applyTransform() {
+  lbImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  lbStage.classList.toggle('zoomed', scale > 1);
+  const level = document.getElementById('lbLevel');
+  if (level) level.textContent = Math.round(scale * 100) + '%';
 }
+
+function resetZoom() { scale = 1; tx = 0; ty = 0; applyTransform(); }
+
+// Zoom about a point, so the detail under the cursor stays under the cursor.
+function zoomAt(clientX, clientY, factor) {
+  const rect = lbImg.getBoundingClientRect();
+  const next = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale * factor));
+  if (next === scale) return;
+  const ox = clientX - rect.left, oy = clientY - rect.top;
+  const ratio = next / scale;
+  tx -= ox * (ratio - 1);
+  ty -= oy * (ratio - 1);
+  scale = next;
+  if (scale === 1) { tx = 0; ty = 0; }
+  applyTransform();
+}
+
+function paintLightbox() {
+  if (!lbImg) return;
+  lbImg.src = shots[current];
+  lbImg.alt = `Photo ${current + 1}`;
+  const count = document.getElementById('lbCount');
+  if (count) count.textContent = `${current + 1} of ${shots.length}`;
+  resetZoom();
+}
+
 function openLightbox() {
   if (!shots.length || !lb) return;
   paintLightbox();
   lb.classList.add('open');
   document.body.style.overflow = 'hidden';
-  document.getElementById('lbClose').focus();
+  const hint = document.getElementById('lbHint');
+  if (hint) { hint.classList.remove('gone'); setTimeout(() => hint.classList.add('gone'), 2800); }
+  document.getElementById('lbClose')?.focus();
 }
+
 function closeLightbox() {
   if (!lb) return;
   lb.classList.remove('open');
   document.body.style.overflow = '';
+  resetZoom();
 }
+
 const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
 bind('lbClose', closeLightbox);
 bind('lbPrev', () => show(current - 1));
 bind('lbNext', () => show(current + 1));
+bind('lbFit', resetZoom);
+bind('lbIn', () => zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1.4));
+bind('lbOut', () => zoomAt(window.innerWidth / 2, window.innerHeight / 2, 1 / 1.4));
+
+if (lbStage) {
+  lbStage.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, e.deltaY < 0 ? 1.18 : 1 / 1.18);
+  }, { passive: false });
+
+  // Single tap zooms in when fitted; when already zoomed it starts a drag.
+  lbStage.addEventListener('dblclick', e => {
+    scale > 1 ? resetZoom() : zoomAt(e.clientX, e.clientY, 2.6);
+  });
+
+  /* Pointer events cover mouse, touch and pen with one code path, including
+   * two-finger pinch, which touch events alone make painful. */
+  const pointers = new Map();
+  let startDist = 0, startScale = 1, last = null;
+
+  lbStage.addEventListener('pointerdown', e => {
+    lbStage.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      startDist = Math.hypot(a.x - b.x, a.y - b.y);
+      startScale = scale;
+    } else {
+      last = { x: e.clientX, y: e.clientY };
+      if (scale > 1) lbStage.classList.add('dragging');
+    }
+  });
+
+  lbStage.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (startDist > 0) {
+        const target = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * (dist / startDist)));
+        zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, target / scale);
+      }
+      return;
+    }
+
+    if (scale > 1 && last) {
+      tx += e.clientX - last.x;
+      ty += e.clientY - last.y;
+      last = { x: e.clientX, y: e.clientY };
+      applyTransform();
+    }
+  });
+
+  const release = e => {
+    pointers.delete(e.pointerId);
+    lbStage.classList.remove('dragging');
+    if (pointers.size < 2) startDist = 0;
+    last = null;
+  };
+  lbStage.addEventListener('pointerup', release);
+  lbStage.addEventListener('pointercancel', release);
+
+  // Swiping between photos only makes sense when not zoomed in.
+  let swipeX = null;
+  lbStage.addEventListener('pointerdown', e => { if (scale === 1) swipeX = e.clientX; });
+  lbStage.addEventListener('pointerup', e => {
+    if (swipeX === null || scale > 1) { swipeX = null; return; }
+    const dx = e.clientX - swipeX;
+    if (Math.abs(dx) > 70) show(current + (dx < 0 ? 1 : -1));
+    swipeX = null;
+  });
+}
+
 if (lb) lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+
 document.addEventListener('keydown', e => {
   if (!lb || !lb.classList.contains('open')) return;
   if (e.key === 'Escape') closeLightbox();
   if (e.key === 'ArrowLeft') show(current - 1);
   if (e.key === 'ArrowRight') show(current + 1);
+  if (e.key === '+' || e.key === '=') zoomAt(innerWidth / 2, innerHeight / 2, 1.4);
+  if (e.key === '-') zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.4);
+  if (e.key === '0') resetZoom();
 });
 
 /* ------------------------------ page ------------------------------- */

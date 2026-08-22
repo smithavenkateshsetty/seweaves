@@ -101,8 +101,11 @@ app.post('/api/admin/upload', requireAdmin, receiveImages, wrap(async (req, res)
   for (const file of req.files || []) {
     const name = `${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
     const [full, thumb] = await Promise.all([
+      // 2000px on the long edge: enough that a customer can zoom right into the
+      // zari and still see thread, without the file getting silly. WebP at 82
+      // keeps this around 300–450 KB.
       sharp(file.buffer).rotate()
-        .resize(1200, 1600, { fit: 'inside', withoutEnlargement: true })
+        .resize(2000, 2667, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 82 }).toBuffer(),
       sharp(file.buffer).rotate()
         .resize(500, 667, { fit: 'cover' })

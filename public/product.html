@@ -6,18 +6,18 @@
 <title>SeWeaves</title>
 <link rel="stylesheet" href="/styles.css">
 <style>
-.detail{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(26px,4vw,56px);align-items:start}
-@media(max-width:880px){.detail{grid-template-columns:1fr}}
+.detail{display:grid;grid-template-columns:1.45fr .95fr;gap:clamp(26px,3.5vw,52px);align-items:start}
+@media(max-width:980px){.detail{grid-template-columns:1fr}}
 
 /* --- gallery: thumbnail rail + stage, Amazon-style --- */
-.gallery{display:grid;grid-template-columns:74px 1fr;gap:14px;align-items:start}
+.gallery{display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:start}
 @media(max-width:600px){.gallery{grid-template-columns:1fr}}
 
-.rail{display:flex;flex-direction:column;gap:9px;max-height:640px;overflow-y:auto;scrollbar-width:thin}
+.rail{display:flex;flex-direction:column;gap:10px;max-height:760px;overflow-y:auto;scrollbar-width:thin}
 @media(max-width:600px){
   .rail{flex-direction:row;order:2;overflow-x:auto;max-height:none;padding-bottom:4px}
 }
-.rail button{flex:none;width:74px;height:98px;padding:0;cursor:pointer;overflow:hidden;
+.rail button{flex:none;width:86px;height:114px;padding:0;cursor:pointer;overflow:hidden;
   background:var(--oxblood-deep);border:1px solid rgba(201,162,87,.35);transition:border-color .2s,opacity .2s;opacity:.75}
 .rail button:hover{opacity:1;border-color:rgba(201,162,87,.7)}
 .rail button[aria-current="true"]{border-color:var(--gold-bright);opacity:1}
@@ -51,18 +51,46 @@
 .stage:hover .zoomhint{opacity:1}
 @media(hover:none){.zoomhint{display:none}}
 
-/* --- lightbox --- */
-.lightbox{position:fixed;inset:0;z-index:80;background:rgba(20,3,6,.95);display:none;
-  align-items:center;justify-content:center;flex-direction:column;padding:20px}
+/* --- fullscreen zoom viewer --- */
+.lightbox{position:fixed;inset:0;z-index:80;background:rgba(16,3,5,.97);display:none;
+  flex-direction:column}
 .lightbox.open{display:flex}
-.lightbox img{max-width:min(92vw,900px);max-height:82vh;object-fit:contain;
-  border:1px solid rgba(201,162,87,.4)}
-.lightbox .lbnav{display:flex;gap:12px;align-items:center;margin-top:16px}
-.lightbox button{background:transparent;border:1px solid var(--gold);color:var(--gold-bright);
-  font-family:var(--engraved);font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;
-  padding:10px 18px;cursor:pointer}
-.lightbox button:hover{background:rgba(201,162,87,.2)}
-.lightbox .close{position:absolute;top:18px;right:20px;font-size:1.6rem;padding:6px 14px}
+.lbstage{
+  flex:1;overflow:hidden;display:flex;align-items:center;justify-content:center;
+  cursor:zoom-in;touch-action:none;position:relative;
+}
+.lbstage.zoomed{cursor:grab}
+.lbstage.dragging{cursor:grabbing}
+.lbstage img{
+  max-width:100%;max-height:100%;object-fit:contain;
+  transform-origin:0 0;will-change:transform;user-select:none;-webkit-user-drag:none;
+}
+.lbbar{
+  display:flex;gap:10px;align-items:center;justify-content:center;flex-wrap:wrap;
+  padding:14px 18px;border-top:1px solid rgba(201,162,87,.3);
+}
+.lbbar button{
+  background:transparent;border:1px solid var(--gold);color:var(--gold-bright);
+  font-family:var(--engraved);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:9px 15px;cursor:pointer;
+}
+.lbbar button:hover{background:rgba(201,162,87,.2)}
+.lbbar .zoomlvl{
+  font-family:var(--engraved);font-size:.6rem;letter-spacing:.14em;color:var(--ivory-dim);
+  min-width:52px;text-align:center;
+}
+.lightbox .close{
+  position:absolute;top:14px;right:16px;z-index:3;font-size:1.5rem;line-height:1;
+  padding:5px 13px;background:rgba(16,3,5,.8);
+}
+.lbhint{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);z-index:2;
+  font-family:var(--engraved);font-size:.55rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ivory-dim);background:rgba(16,3,5,.75);padding:7px 13px;
+  border:1px solid rgba(201,162,87,.3);pointer-events:none;
+  transition:opacity .4s;
+}
+.lbhint.gone{opacity:0}
 
 .specs{list-style:none;padding:0;margin:26px 0;border-top:1px solid rgba(201,162,87,.3)}
 .specs li{display:flex;justify-content:space-between;gap:20px;padding:12px 0;
@@ -107,20 +135,20 @@
 
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Photo viewer">
   <button class="close" id="lbClose" aria-label="Close viewer">&times;</button>
-  <img id="lbImg" alt="">
-  <div class="lbnav">
+  <div class="lbstage" id="lbStage">
+    <img id="lbImg" alt="" draggable="false">
+    <span class="lbhint" id="lbHint">Scroll or pinch to zoom · drag to move</span>
+  </div>
+  <div class="lbbar">
     <button id="lbPrev">Previous</button>
-    <span class="muted" id="lbCount"></span>
+    <button id="lbOut" aria-label="Zoom out">−</button>
+    <span class="zoomlvl" id="lbLevel">100%</span>
+    <button id="lbIn" aria-label="Zoom in">+</button>
+    <button id="lbFit">Fit</button>
+    <span class="muted" id="lbCount" style="margin:0 8px"></span>
     <button id="lbNext">Next</button>
   </div>
 </div>
-
-
-<a class="wafloat" id="waFloat" href="#" hidden target="_blank" rel="noopener"
-   aria-label="Place an order on WhatsApp">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2m0 1.67c2.2 0 4.27.86 5.83 2.42a8.19 8.19 0 0 1 2.41 5.82c0 4.54-3.7 8.24-8.25 8.24a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.19 8.19 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24m-2.6 4.1c-.16 0-.42.06-.64.3-.22.24-.85.83-.85 2.02s.87 2.34.99 2.5c.12.16 1.7 2.6 4.13 3.64.58.25 1.03.4 1.38.51.58.19 1.11.16 1.53.1.47-.07 1.43-.59 1.63-1.15.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28-.24-.12-1.43-.7-1.65-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.46-.39-.4-.54-.41z"/></svg>
-  <span class="waflabel">Place order</span>
-</a>
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-label="Your bag">
@@ -129,8 +157,8 @@
   <div class="foot" id="bagFoot"></div>
 </aside>
 
-<script src="/app.js?v=7"></script>
-<script src="/product.js?v=7"></script>
+<script src="/app.js?v=8"></script>
+<script src="/product.js?v=8"></script>
 <script>
 /* Watchdog. If product.js has not rendered within 6 seconds, this inline script
  * — which cannot itself be cached separately or fail to load — diagnoses why and

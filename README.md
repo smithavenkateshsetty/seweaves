@@ -148,9 +148,19 @@ bare hostname — useful for knowing whether the Instagram posts are doing anyth
 Up to 8 per piece. Stored twice — 1200×1600 for the product page, 500×667 for the
 grid. **First photo is the cover.** Drag to reorder in the admin.
 
-Customers get a thumbnail rail, 2.2× hover zoom, fullscreen lightbox, swipe on
-phones, and arrow keys. The grid tile swaps to photo two on hover, so shoot the
-pallu second.
+Stored at 2000px on the long edge, so zooming shows real thread rather than an
+upscaled blur. Roughly 300–450 KB per photo as WebP.
+
+On the product page the photo takes the larger share of the width. Hovering
+magnifies 2.6× in place; clicking opens a fullscreen viewer with:
+
+- wheel or pinch zoom up to 6×, centred on the cursor or the pinch
+- drag to pan, double-click or double-tap to toggle
+- +, −, Fit buttons and a live zoom percentage
+- swipe between photos when fitted, arrow keys any time
+- keyboard: `+`, `-`, `0` to reset, Escape to close
+
+The grid tile swaps to photo two on hover, so shoot the pallu second.
 
 ## Prices are server-side
 
