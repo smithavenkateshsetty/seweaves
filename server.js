@@ -566,6 +566,11 @@ app.get('/piece/:slug', (_req, res) =>
   res.sendFile(path.join(ROOT, 'public', 'product.html')));
 
 // Render pings this to decide the service is up.
+/* For uptime pingers. Deliberately touches nothing — no database, no storage —
+ * so keeping Render awake does not also keep Neon's compute awake and burn
+ * through its free quota. Use this URL in cron-job.org, not /healthz. */
+app.get('/ping', (_req, res) => res.type('text/plain').send('awake'));
+
 app.get('/healthz', wrap(async (_req, res) => {
   await pool.query('SELECT 1');
   res.json({ ok: true });
