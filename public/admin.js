@@ -505,6 +505,52 @@ async function loadReviews() {
   });
 }
 
+/* ----------------------------- traffic ------------------------------ */
+async function loadTraffic() {
+  const t = await api('/api/admin/traffic');
+
+  $('trafficStats').innerHTML = [
+    ['Views today', t.today], ['Visitors today', t.todayVisitors],
+    ['Last 7 days', t.week], ['Last 30 days', t.month], ['All time', t.total]
+  ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
+
+  if (!t.series.length) {
+    $('trafficChart').innerHTML = '<p class="muted">No visits recorded yet.</p>';
+  } else {
+    const peak = Math.max(...t.series.map(d => d.hits), 1);
+    $('trafficChart').innerHTML = t.series.map(d => {
+      const h = Math.max(2, Math.round((d.hits / peak) * 100));
+      const v = d.hits ? Math.round((d.visitors / d.hits) * h) : 0;
+      const date = new Date(d.day + 'T00:00:00')
+        .toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      return `<div class="bar" style="height:${h}%">
+        <span class="vis" style="height:${v}%"></span>
+        <span class="tip">${date} · ${d.hits} view${d.hits === 1 ? '' : 's'},
+          ${d.visitors} visitor${d.visitors === 1 ? '' : 's'}</span>
+      </div>`;
+    }).join('') ;
+    $('trafficChart').insertAdjacentHTML('afterend', '');
+  }
+
+  const legend = `<div class="legend">
+    <span><i style="background:rgba(201,162,87,.35)"></i>Page views</span>
+    <span><i style="background:var(--gold)"></i>Unique visitors</span>
+  </div>`;
+  const old = document.querySelector('[data-panel="traffic"] .legend');
+  if (old) old.remove();
+  $('trafficChart').insertAdjacentHTML('afterend', legend);
+
+  $('trafficRefs').innerHTML = t.refs.length
+    ? t.refs.map(r => `<div class="trow"><span>${esc(r.ref)}</span><b>${r.hits}</b></div>`).join('')
+    : '<p class="muted">Nothing yet.</p>';
+
+  $('trafficPieces').innerHTML = t.pieces.length
+    ? t.pieces.map(p => `<div class="trow">
+        <a href="/piece/${esc(p.slug)}" style="text-decoration:none">${esc(p.title)}</a>
+        <b>${p.views} view${p.views === 1 ? '' : 's'}</b></div>`).join('')
+    : '<p class="muted">No product pages viewed yet.</p>';
+}
+
 /* ------------------------------ stats ------------------------------ */
 async function loadStats() {
   const s = await api('/api/admin/stats');
@@ -515,7 +561,7 @@ async function loadStats() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([loadStats(), loadProducts(), loadOrders(), loadReviews(), loadDiscount()]); }
+  try { await Promise.all([loadStats(), loadProducts(), loadOrders(), loadReviews(), loadDiscount(), loadTraffic()]); }
   catch { /* api() already handled a signed-out state */ }
 }
 

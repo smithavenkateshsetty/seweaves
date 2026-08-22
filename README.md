@@ -122,6 +122,27 @@ two rows cannot be given the same code in one edit.
 **Photos** is the only thing that still opens its own screen — reordering and
 uploading need more room than a table row allows.
 
+## Traffic
+
+A **Traffic** tab in the admin: views today, visitors today, last 7 days, last 30
+days and all time, a 30-day bar chart with unique visitors shaded inside each bar,
+where visitors came from, and the most viewed pieces.
+
+Counted: the shop page and product pages. Not counted: images, CSS, the API, the
+admin, or the `/ping` uptime endpoint — otherwise the numbers would be fiction.
+
+Stored as daily aggregates, three small rows per day, rather than a row per
+request. On Neon's free tier a per-request log would consume the storage quota
+within weeks.
+
+Visitors are identified by a salted SHA-256 of address, browser and date. The
+address is never written down, and the hash changes daily, so it cannot be used
+to follow someone over time. Set `HIT_SALT` to a fixed random string if you want
+the counts to stay consistent across restarts.
+
+Referrers are bucketed into WhatsApp, Instagram, Facebook, Google, direct, or the
+bare hostname — useful for knowing whether the Instagram posts are doing anything.
+
 ## Photos
 
 Up to 8 per piece. Stored twice — 1200×1600 for the product page, 500×667 for the

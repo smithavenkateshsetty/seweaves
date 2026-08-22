@@ -96,6 +96,30 @@ tr.dirty td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
 textarea.cell.box{resize:vertical;font-family:var(--body);line-height:1.5}
 .photonote{font-size:.84rem;color:var(--ivory-dim);border-top:1px solid rgba(201,162,87,.25);
   padding-top:12px}
+
+/* traffic */
+.tsub{font-family:var(--engraved);font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold);margin:30px 0 14px;padding-bottom:8px;
+  border-bottom:1px solid rgba(201,162,87,.3)}
+.chart{display:flex;align-items:flex-end;gap:3px;height:150px;
+  border-bottom:1px solid rgba(201,162,87,.3);padding-bottom:2px}
+.bar{flex:1;min-width:5px;background:rgba(201,162,87,.35);position:relative;
+  transition:background .2s;cursor:default}
+.bar:hover{background:var(--gold-bright)}
+.bar .tip{display:none;position:absolute;bottom:calc(100% + 7px);left:50%;
+  transform:translateX(-50%);white-space:nowrap;z-index:5;
+  background:var(--oxblood-deep);border:1px solid var(--gold);color:var(--ivory);
+  font-family:var(--body);font-size:.78rem;padding:6px 10px;text-transform:none;letter-spacing:0}
+.bar:hover .tip{display:block}
+.bar .vis{position:absolute;left:0;right:0;bottom:0;background:var(--gold)}
+.tcols{display:grid;grid-template-columns:1fr 1fr;gap:30px}
+@media(max-width:760px){.tcols{grid-template-columns:1fr}}
+.trow{display:flex;justify-content:space-between;gap:14px;padding:10px 0;
+  border-bottom:1px solid rgba(201,162,87,.2);font-size:.92rem}
+.trow b{color:var(--gold-bright);font-weight:400}
+.legend{display:flex;gap:18px;margin-top:12px;font-family:var(--engraved);
+  font-size:.55rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ivory-dim)}
+.legend i{display:inline-block;width:11px;height:11px;margin-right:6px;vertical-align:-1px}
 </style>
 </head>
 <body>
@@ -128,6 +152,7 @@ textarea.cell.box{resize:vertical;font-family:var(--body);line-height:1.5}
       <button data-tab="add">Add a piece</button>
       <button data-tab="orders">Enquiries</button>
       <button data-tab="reviews">Reviews</button>
+      <button data-tab="traffic">Traffic</button>
     </div>
 
     <!-- CATALOGUE -->

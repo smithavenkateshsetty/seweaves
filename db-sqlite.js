@@ -157,6 +157,26 @@ export async function migrate() {
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  CREATE TABLE IF NOT EXISTS site_hits (
+    day   TEXT NOT NULL,
+    kind  TEXT NOT NULL,
+    hits  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, kind)
+  );
+
+  CREATE TABLE IF NOT EXISTS site_visitors (
+    day     TEXT NOT NULL,
+    visitor TEXT NOT NULL,
+    PRIMARY KEY (day, visitor)
+  );
+
+  CREATE TABLE IF NOT EXISTS site_refs (
+    day  TEXT NOT NULL,
+    ref  TEXT NOT NULL,
+    hits INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (day, ref)
+  );
+
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
