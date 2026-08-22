@@ -1,3 +1,11 @@
+/* Wrapped in an IIFE. app.js and this file are both classic scripts and share
+ * one global scope, so any name declared here that app.js also declares — esc,
+ * Cart, rupees and friends — is a duplicate `const` and a SyntaxError at parse
+ * time, which stops this whole file running. Scoping it makes that impossible.
+ */
+(function () {
+'use strict';
+
 /* Defensive: if app.js failed to load, fall back to local helpers rather than
  * throwing on line 1 and leaving the page stuck on "Loading...". */
 window.__swProductLoaded = true;   // the watchdog in product.html checks this
@@ -397,3 +405,5 @@ function render(p) {
       : `<p class="note bad">${esc(data.error)}</p>`;
   };
 }
+
+})();

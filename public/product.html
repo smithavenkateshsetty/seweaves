@@ -102,6 +102,17 @@
 .review{border-left:1px solid rgba(201,162,87,.4);padding:4px 0 4px 16px;margin-bottom:22px}
 .review h5{margin:0 0 3px;font-size:1rem;font-weight:500}
 </style>
+<script>
+/* Registered before any other script so it can catch parse errors in them. */
+window.__swError = null;
+window.addEventListener('error', function (e) {
+  if (e.target && e.target.tagName === 'SCRIPT') {
+    window.__swError = 'script failed to load: ' + (e.target.src || '?');
+  } else if (e.message) {
+    window.__swError = e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '');
+  }
+}, true);
+</script>
 </head>
 <body>
 <div class="page">
@@ -157,22 +168,11 @@
   <div class="foot" id="bagFoot"></div>
 </aside>
 
-<script src="/app.js?v=8"></script>
-<script src="/product.js?v=8"></script>
+<script src="/app.js?v=9"></script>
+<script src="/product.js?v=9"></script>
 <script>
 /* Watchdog. If product.js has not rendered within 6 seconds, this inline script
  * — which cannot itself be cached separately or fail to load — works out why. */
-window.__swError = null;
-window.addEventListener('error', function (e) {
-  // A failed <script> gives an Event on the element; a thrown error gives an
-  // ErrorEvent with a message. They need telling apart.
-  if (e.target && e.target.tagName === 'SCRIPT') {
-    window.__swError = 'script failed to load: ' + (e.target.src || '?');
-  } else if (e.message) {
-    window.__swError = e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '');
-  }
-}, true);
-
 setTimeout(async function () {
   var root = document.getElementById('detail');
   if (!root || !/Loading/.test(root.textContent)) return;   // rendered fine
