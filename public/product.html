@@ -161,9 +161,17 @@
 <script src="/product.js?v=8"></script>
 <script>
 /* Watchdog. If product.js has not rendered within 6 seconds, this inline script
- * — which cannot itself be cached separately or fail to load — diagnoses why and
- * shows the reason instead of leaving the customer on "Loading..." forever. */
-window.addEventListener('error', e => { window.__swError = e.message; }, true);
+ * — which cannot itself be cached separately or fail to load — works out why. */
+window.__swError = null;
+window.addEventListener('error', function (e) {
+  // A failed <script> gives an Event on the element; a thrown error gives an
+  // ErrorEvent with a message. They need telling apart.
+  if (e.target && e.target.tagName === 'SCRIPT') {
+    window.__swError = 'script failed to load: ' + (e.target.src || '?');
+  } else if (e.message) {
+    window.__swError = e.message + (e.lineno ? ' (line ' + e.lineno + ')' : '');
+  }
+}, true);
 
 setTimeout(async function () {
   var root = document.getElementById('detail');
@@ -173,8 +181,20 @@ setTimeout(async function () {
   var lines = [];
 
   lines.push(window.SeWeaves ? 'app.js loaded' : 'app.js did NOT load');
-  lines.push(window.__swProductLoaded ? 'product.js loaded' : 'product.js did NOT load or failed');
+  lines.push(window.__swProductLoaded ? 'product.js ran' : 'product.js did NOT run');
   if (window.__swError) lines.push('error: ' + window.__swError);
+
+  // Is the file even on the server?
+  try {
+    var f = await fetch('/product.js?probe=1', { cache: 'no-store' });
+    var body = await f.text();
+    lines.push('product.js file: HTTP ' + f.status + ', ' + body.length + ' bytes');
+    if (f.ok && body.length) {
+      lines.push(/__swProductLoaded/.test(body)
+        ? 'file is the current version'
+        : 'file is an OLD version — redeploy public/product.js');
+    }
+  } catch (err) { lines.push('could not fetch product.js: ' + err.message); }
 
   try {
     var res = await fetch('/api/products/' + encodeURIComponent(slug));
