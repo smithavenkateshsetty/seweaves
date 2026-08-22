@@ -129,7 +129,39 @@
   <div class="foot" id="bagFoot"></div>
 </aside>
 
-<script src="/app.js"></script>
-<script src="/product.js"></script>
+<script src="/app.js?v=7"></script>
+<script src="/product.js?v=7"></script>
+<script>
+/* Watchdog. If product.js has not rendered within 6 seconds, this inline script
+ * — which cannot itself be cached separately or fail to load — diagnoses why and
+ * shows the reason instead of leaving the customer on "Loading..." forever. */
+window.addEventListener('error', e => { window.__swError = e.message; }, true);
+
+setTimeout(async function () {
+  var root = document.getElementById('detail');
+  if (!root || !/Loading/.test(root.textContent)) return;   // rendered fine
+
+  var slug = location.pathname.split('/').filter(Boolean).pop();
+  var lines = [];
+
+  lines.push(window.SeWeaves ? 'app.js loaded' : 'app.js did NOT load');
+  lines.push(window.__swProductLoaded ? 'product.js loaded' : 'product.js did NOT load or failed');
+  if (window.__swError) lines.push('error: ' + window.__swError);
+
+  try {
+    var res = await fetch('/api/products/' + encodeURIComponent(slug));
+    lines.push('API returned ' + res.status);
+    if (res.ok) { var d = await res.json(); lines.push('data received for "' + d.title + '"'); }
+  } catch (err) { lines.push('API call failed: ' + err.message); }
+
+  root.innerHTML =
+    '<p class="eyebrow">This piece would not load</p>' +
+    '<h1 class="h1">Something is wrong at our end.</h1>' +
+    '<p class="lede">Please try again, or message us and we will send you the details.</p>' +
+    '<p style="margin-top:24px"><a class="btn" href="/#catalogue">Back to the rail</a></p>' +
+    '<pre style="margin-top:30px;color:#CDBBA0;font-size:.8rem;white-space:pre-wrap;' +
+    'border-left:2px solid #C9A257;padding-left:14px">' + lines.join('\n') + '</pre>';
+}, 6000);
+</script>
 </body>
 </html>

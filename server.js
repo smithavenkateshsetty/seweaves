@@ -683,7 +683,14 @@ app.get('/piece/:slug', (req, res) => {
   res.sendFile(path.join(ROOT, 'public', 'product.html'));
 });
 
-app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
+app.use(express.static(path.join(ROOT, 'public'), {
+  extensions: ['html'],
+  // HTML and scripts must revalidate, or a deploy leaves stale files running in
+  // browsers that already visited. Images are content-hashed and can cache hard.
+  setHeaders(res, filePath) {
+    if (/\.(html|js|css)$/.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 // Render pings this to decide the service is up.
 /* For uptime pingers. Deliberately touches nothing — no database, no storage —

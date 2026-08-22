@@ -1,5 +1,6 @@
 /* Defensive: if app.js failed to load, fall back to local helpers rather than
  * throwing on line 1 and leaving the page stuck on "Loading...". */
+window.__swProductLoaded = true;   // the watchdog in product.html checks this
 const SW = window.SeWeaves || {};
 const esc = SW.esc || (v => String(v ?? '').replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
