@@ -63,6 +63,8 @@ function markDirty(id, field, value) {
 
   const tr = document.querySelector(`tr[data-row="${id}"]`);
   if (tr) tr.classList.toggle('dirty', dirty.has(id));
+  const panel = document.querySelector(`tr[data-detail="${id}"]`);
+  if (panel) panel.classList.toggle('dirty', dirty.has(id));
   paintPreview(id);
   paintSaveBar();
 }
@@ -142,9 +144,38 @@ async function loadProducts() {
     <td><label class="livebox"><input type="checkbox" ${p.active ? 'checked' : ''}
         data-f="active" data-id="${p.id}"><span></span></label></td>
     <td style="white-space:nowrap">
+      <button class="btn ghost sm" data-more="${p.id}" aria-expanded="false">Details</button>
       <button class="btn ghost sm" data-edit="${p.id}">Photos</button>
       <button class="btn ghost sm" data-del="${p.id}">Delete</button></td>
-  </tr>`).join('');
+  </tr>
+  <tr class="detailrow" data-detail="${p.id}" hidden><td colspan="10">
+    <div class="detailgrid">
+      <div><label class="lab">SKU</label>
+        <input class="cell box" value="${esc(p.sku)}" data-f="sku" data-id="${p.id}"></div>
+      <div><label class="lab">Collection</label>
+        <select class="cell box" data-f="collection" data-id="${p.id}">
+          ${['bridal','party','festive','designer','blouse'].map(c =>
+            `<option value="${c}" ${p.collection === c ? 'selected' : ''}>${LABEL[c]}</option>`).join('')}
+        </select></div>
+      <div><label class="lab">Was ₹ (0 to hide)</label>
+        <input class="cell box" type="number" min="0" value="${p.mrp || 0}" data-f="mrp" data-id="${p.id}"></div>
+      <div><label class="lab">Fabric</label>
+        <input class="cell box" value="${esc(p.fabric)}" placeholder="Pure silk" data-f="fabric" data-id="${p.id}"></div>
+      <div><label class="lab">Colour</label>
+        <input class="cell box" value="${esc(p.colour)}" placeholder="Wine / gold" data-f="colour" data-id="${p.id}"></div>
+      <div><label class="lab">Work</label>
+        <input class="cell box" value="${esc(p.work)}" placeholder="Zari, aari" data-f="work" data-id="${p.id}"></div>
+      <div><label class="lab">Blouse size</label>
+        <input class="cell box" value="${esc(p.blouse_size)}" placeholder="38" data-f="blouse_size" data-id="${p.id}"></div>
+      <div class="full"><label class="lab">Description</label>
+        <textarea class="cell box" rows="3" placeholder="Where it's from, how it drapes, what it suits."
+          data-f="description" data-id="${p.id}">${esc(p.description)}</textarea></div>
+      <div class="full photonote">
+        ${p.images.length} photo${p.images.length === 1 ? '' : 's'} —
+        use <b>Photos</b> to add, remove or reorder them.
+      </div>
+    </div>
+  </td></tr>`).join('');
 
   rows.forEach(p => paintPreview(p.id));
 
@@ -155,9 +186,19 @@ async function loadProducts() {
     el.onchange = handler;
     // Enter saves everything; Escape abandons the batch.
     el.onkeydown = e => {
-      if (e.key === 'Enter') { e.preventDefault(); saveAll(); }
+      // Enter inside a description should make a new line, not save.
+      if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); saveAll(); }
       if (e.key === 'Escape') { e.preventDefault(); loadProducts(); }
     };
+  });
+
+  $('pRows').querySelectorAll('[data-more]').forEach(b => b.onclick = () => {
+    const panel = document.querySelector(`[data-detail="${b.dataset.more}"]`);
+    if (!panel) return;
+    const open = panel.hidden;
+    panel.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    b.textContent = open ? 'Close' : 'Details';
   });
 
   $('pRows').querySelectorAll('[data-edit]').forEach(b => b.onclick = () =>

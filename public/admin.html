@@ -82,6 +82,20 @@ tr.dirty td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
   font-family:var(--engraved);font-size:.62rem;letter-spacing:.16em;
   text-transform:uppercase;color:var(--gold-bright)}
 .savebar.show{display:flex}
+
+/* expandable detail row */
+.detailrow td{background:rgba(51,9,14,.55);padding:20px 24px;
+  border-bottom:1px solid rgba(201,162,87,.35)}
+.detailrow.dirty td{box-shadow:inset 3px 0 0 var(--gold);background:rgba(201,162,87,.07)}
+.detailgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.detailgrid .full{grid-column:1/-1}
+.detailgrid .lab{display:block;font-family:var(--engraved);font-size:.52rem;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.cell.box{border-color:rgba(201,162,87,.4);background:rgba(51,9,14,.55);padding:9px 11px}
+.cell.box:focus{border-color:var(--gold);background:rgba(51,9,14,.85)}
+textarea.cell.box{resize:vertical;font-family:var(--body);line-height:1.5}
+.photonote{font-size:.84rem;color:var(--ivory-dim);border-top:1px solid rgba(201,162,87,.25);
+  padding-top:12px}
 </style>
 </head>
 <body>
@@ -137,8 +151,10 @@ tr.dirty td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
         <span class="count" id="pCount"></span>
         <input class="field" id="pSearch" placeholder="Search catalogue" style="width:auto">
       </div>
-      <p class="note">Edit any cell directly. Changes are held until you press
-        <b>Save all changes</b> — Enter saves, Escape discards. Boost is your hand on the rail:
+      <p class="note">Every field is editable here — <b>Details</b> opens SKU, collection,
+        fabric, colour, work, size and description on the row itself. Changes are held until
+        you press <b>Save all changes</b>: Enter saves, Escape discards. Photos are the one
+        exception and still open in their own screen. Boost is your hand on the rail:
         each point lifts a piece 100 places ahead of sales and ratings, so use 1–3 for the
         window pieces and 0 for everything else.</p>
       <div class="savebar" id="saveBar">

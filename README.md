@@ -111,8 +111,16 @@ either — you get one error and an unchanged catalogue, rather than a half-appl
 edit you have to unpick. Values that are merely out of range (boost 99, a 150%
 discount) are clamped rather than rejected.
 
-The **Photos** button still opens the full form, which is the only place to change
-images, SKU, collection and description.
+Every field is editable in the table. The visible columns cover title, price,
+discount, stock, boost and live/hidden; **Details** expands the row to reveal SKU,
+collection, was-price, fabric, colour, work, blouse size and description. All of it
+feeds the same batch save.
+
+SKUs are checked for uniqueness both against the catalogue and within the batch, so
+two rows cannot be given the same code in one edit.
+
+**Photos** is the only thing that still opens its own screen — reordering and
+uploading need more room than a table row allows.
 
 ## Photos
 

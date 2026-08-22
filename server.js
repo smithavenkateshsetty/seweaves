@@ -401,8 +401,11 @@ app.put('/api/admin/products/:id', requireAdmin, wrap(async (req, res) => {
  * Everything is validated before anything is written, and the writes share one
  * connection inside a transaction, so a bad row in the middle cannot leave the
  * catalogue half-updated. */
-const INLINE_FIELDS = ['title', 'price', 'stock', 'boost', 'active',
-                       'discount_type', 'discount_value'];
+const INLINE_FIELDS = ['title', 'sku', 'collection', 'price', 'mrp', 'stock', 'boost',
+                       'active', 'discount_type', 'discount_value',
+                       'fabric', 'colour', 'work', 'blouse_size', 'description'];
+
+const COLLECTIONS = ['bridal', 'party', 'festive', 'designer', 'blouse'];
 
 app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
   const updates = Array.isArray(req.body.updates) ? req.body.updates.slice(0, 200) : [];
@@ -412,6 +415,11 @@ app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
   const existing = await q(
     'SELECT id, price FROM products WHERE id = ANY(@ids)', { ids });
   const priceOfId = new Map(existing.map(r => [r.id, r.price]));
+
+  // SKUs must stay unique, both against the catalogue and within this batch.
+  const allSkus = await q('SELECT id, sku FROM products');
+  const skuOwner = new Map(allSkus.map(r => [r.sku.toUpperCase(), r.id]));
+  const batchSkus = new Map();
 
   // ---- validate everything first ----
   const problems = [];
@@ -426,9 +434,33 @@ app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
     if (!Object.keys(set).length) continue;
 
     if ('title' in set) {
-      set.title = String(set.title).trim();
+      set.title = String(set.title).trim().slice(0, 160);
       if (!set.title) { problems.push(`Piece ${id}: title cannot be empty.`); continue; }
     }
+
+    if ('sku' in set) {
+      set.sku = String(set.sku).trim().toUpperCase().slice(0, 40);
+      if (!set.sku) { problems.push(`Piece ${id}: SKU cannot be empty.`); continue; }
+      const owner = skuOwner.get(set.sku);
+      if (owner && owner !== id) {
+        problems.push(`SKU ${set.sku} already belongs to another piece.`); continue;
+      }
+      if (batchSkus.has(set.sku) && batchSkus.get(set.sku) !== id) {
+        problems.push(`SKU ${set.sku} is used twice in these edits.`); continue;
+      }
+      batchSkus.set(set.sku, id);
+    }
+
+    if ('collection' in set && !COLLECTIONS.includes(set.collection)) {
+      problems.push(`Piece ${id}: unknown collection.`); continue;
+    }
+
+    if ('mrp' in set) set.mrp = Math.max(0, parseInt(set.mrp) || 0);
+
+    for (const f of ['fabric', 'colour', 'work', 'blouse_size']) {
+      if (f in set) set[f] = String(set[f]).trim().slice(0, 80);
+    }
+    if ('description' in set) set.description = String(set.description).trim().slice(0, 2000);
     if ('price' in set) {
       set.price = parseInt(set.price) || 0;
       if (set.price <= 0) { problems.push(`Piece ${id}: price must be above zero.`); continue; }
