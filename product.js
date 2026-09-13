@@ -1,3 +1,8 @@
+/* Wrapped in an IIFE so product.js's top-level names (esc, rupees, thumb,
+ * collLabels, Cart, …) stay private and never collide with app.js, which
+ * shares the same global scope on this page. Fixes:
+ *   Uncaught SyntaxError: Identifier 'esc' has already been declared */
+(function () {
 /* Defensive: if app.js failed to load, fall back to local helpers rather than
  * throwing on line 1 and leaving the page stuck on "Loading...". */
 const SW = window.SeWeaves || {};
@@ -279,3 +284,5 @@ function render(p) {
       : `<p class="note bad">${esc(data.error)}</p>`;
   };
 }
+
+})();
