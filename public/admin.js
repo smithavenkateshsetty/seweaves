@@ -63,8 +63,6 @@ function markDirty(id, field, value) {
 
   const tr = document.querySelector(`tr[data-row="${id}"]`);
   if (tr) tr.classList.toggle('dirty', dirty.has(id));
-  const panel = document.querySelector(`tr[data-detail="${id}"]`);
-  if (panel) panel.classList.toggle('dirty', dirty.has(id));
   paintPreview(id);
   paintSaveBar();
 }
@@ -144,38 +142,9 @@ async function loadProducts() {
     <td><label class="livebox"><input type="checkbox" ${p.active ? 'checked' : ''}
         data-f="active" data-id="${p.id}"><span></span></label></td>
     <td style="white-space:nowrap">
-      <button class="btn ghost sm" data-more="${p.id}" aria-expanded="false">Details</button>
       <button class="btn ghost sm" data-edit="${p.id}">Photos</button>
       <button class="btn ghost sm" data-del="${p.id}">Delete</button></td>
-  </tr>
-  <tr class="detailrow" data-detail="${p.id}" hidden><td colspan="10">
-    <div class="detailgrid">
-      <div><label class="lab">SKU</label>
-        <input class="cell box" value="${esc(p.sku)}" data-f="sku" data-id="${p.id}"></div>
-      <div><label class="lab">Collection</label>
-        <select class="cell box" data-f="collection" data-id="${p.id}">
-          ${['bridal','party','festive','designer','blouse'].map(c =>
-            `<option value="${c}" ${p.collection === c ? 'selected' : ''}>${LABEL[c]}</option>`).join('')}
-        </select></div>
-      <div><label class="lab">Was ₹ (0 to hide)</label>
-        <input class="cell box" type="number" min="0" value="${p.mrp || 0}" data-f="mrp" data-id="${p.id}"></div>
-      <div><label class="lab">Fabric</label>
-        <input class="cell box" value="${esc(p.fabric)}" placeholder="Pure silk" data-f="fabric" data-id="${p.id}"></div>
-      <div><label class="lab">Colour</label>
-        <input class="cell box" value="${esc(p.colour)}" placeholder="Wine / gold" data-f="colour" data-id="${p.id}"></div>
-      <div><label class="lab">Work</label>
-        <input class="cell box" value="${esc(p.work)}" placeholder="Zari, aari" data-f="work" data-id="${p.id}"></div>
-      <div><label class="lab">Blouse size</label>
-        <input class="cell box" value="${esc(p.blouse_size)}" placeholder="38" data-f="blouse_size" data-id="${p.id}"></div>
-      <div class="full"><label class="lab">Description</label>
-        <textarea class="cell box" rows="3" placeholder="Where it's from, how it drapes, what it suits."
-          data-f="description" data-id="${p.id}">${esc(p.description)}</textarea></div>
-      <div class="full photonote">
-        ${p.images.length} photo${p.images.length === 1 ? '' : 's'} —
-        use <b>Photos</b> to add, remove or reorder them.
-      </div>
-    </div>
-  </td></tr>`).join('');
+  </tr>`).join('');
 
   rows.forEach(p => paintPreview(p.id));
 
@@ -186,19 +155,9 @@ async function loadProducts() {
     el.onchange = handler;
     // Enter saves everything; Escape abandons the batch.
     el.onkeydown = e => {
-      // Enter inside a description should make a new line, not save.
-      if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); saveAll(); }
+      if (e.key === 'Enter') { e.preventDefault(); saveAll(); }
       if (e.key === 'Escape') { e.preventDefault(); loadProducts(); }
     };
-  });
-
-  $('pRows').querySelectorAll('[data-more]').forEach(b => b.onclick = () => {
-    const panel = document.querySelector(`[data-detail="${b.dataset.more}"]`);
-    if (!panel) return;
-    const open = panel.hidden;
-    panel.hidden = !open;
-    b.setAttribute('aria-expanded', String(open));
-    b.textContent = open ? 'Close' : 'Details';
   });
 
   $('pRows').querySelectorAll('[data-edit]').forEach(b => b.onclick = () =>
@@ -505,52 +464,6 @@ async function loadReviews() {
   });
 }
 
-/* ----------------------------- traffic ------------------------------ */
-async function loadTraffic() {
-  const t = await api('/api/admin/traffic');
-
-  $('trafficStats').innerHTML = [
-    ['Views today', t.today], ['Visitors today', t.todayVisitors],
-    ['Last 7 days', t.week], ['Last 30 days', t.month], ['All time', t.total]
-  ].map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
-
-  if (!t.series.length) {
-    $('trafficChart').innerHTML = '<p class="muted">No visits recorded yet.</p>';
-  } else {
-    const peak = Math.max(...t.series.map(d => d.hits), 1);
-    $('trafficChart').innerHTML = t.series.map(d => {
-      const h = Math.max(2, Math.round((d.hits / peak) * 100));
-      const v = d.hits ? Math.round((d.visitors / d.hits) * h) : 0;
-      const date = new Date(d.day + 'T00:00:00')
-        .toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-      return `<div class="bar" style="height:${h}%">
-        <span class="vis" style="height:${v}%"></span>
-        <span class="tip">${date} · ${d.hits} view${d.hits === 1 ? '' : 's'},
-          ${d.visitors} visitor${d.visitors === 1 ? '' : 's'}</span>
-      </div>`;
-    }).join('') ;
-    $('trafficChart').insertAdjacentHTML('afterend', '');
-  }
-
-  const legend = `<div class="legend">
-    <span><i style="background:rgba(201,162,87,.35)"></i>Page views</span>
-    <span><i style="background:var(--gold)"></i>Unique visitors</span>
-  </div>`;
-  const old = document.querySelector('[data-panel="traffic"] .legend');
-  if (old) old.remove();
-  $('trafficChart').insertAdjacentHTML('afterend', legend);
-
-  $('trafficRefs').innerHTML = t.refs.length
-    ? t.refs.map(r => `<div class="trow"><span>${esc(r.ref)}</span><b>${r.hits}</b></div>`).join('')
-    : '<p class="muted">Nothing yet.</p>';
-
-  $('trafficPieces').innerHTML = t.pieces.length
-    ? t.pieces.map(p => `<div class="trow">
-        <a href="/piece/${esc(p.slug)}" style="text-decoration:none">${esc(p.title)}</a>
-        <b>${p.views} view${p.views === 1 ? '' : 's'}</b></div>`).join('')
-    : '<p class="muted">No product pages viewed yet.</p>';
-}
-
 /* ------------------------------ stats ------------------------------ */
 async function loadStats() {
   const s = await api('/api/admin/stats');
@@ -561,7 +474,7 @@ async function loadStats() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([loadStats(), loadProducts(), loadOrders(), loadReviews(), loadDiscount(), loadTraffic()]); }
+  try { await Promise.all([loadStats(), loadProducts(), loadOrders(), loadReviews(), loadDiscount()]); }
   catch { /* api() already handled a signed-out state */ }
 }
 
@@ -569,4 +482,168 @@ async function refreshAll() {
 (async () => {
   const { signedIn } = await (await fetch('/api/admin/me')).json();
   signedIn ? showApp() : showLogin();
+})();
+
+/* ==================================================================
+ * Bulk price tools  (added)
+ * ------------------------------------------------------------------
+ * Two conveniences layered on top of the existing inline editor:
+ *   1. Export / import prices as CSV, so you can bulk-edit in Excel.
+ *      Import feeds the SAME dirty-cell mechanism as manual edits, so
+ *      you review the highlighted rows and press "Save all changes"
+ *      exactly as before -- no separate save path, one undo.
+ *   2. Click a row's thumbnail to enlarge it, so pieces that share a
+ *      generic title are easy to tell apart.
+ * Relies on existing globals: rows, dirty, markDirty, $, esc.
+ * ================================================================== */
+(function bulkPriceTools() {
+  const csvCell = v => {
+    v = String(v ?? '');
+    return /[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  };
+
+  function download(name, text) {
+    const blob = new Blob(['\uFEFF' + text], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  function bulkMsg(text, kind = '') {
+    const m = $('bulkMsg');
+    if (m) m.innerHTML = `<p class="note ${kind}">${esc(text)}</p>`;
+  }
+
+  /* ---- export ---- */
+  function exportCSV() {
+    if (!rows.length) { bulkMsg('Nothing loaded to export.', 'bad'); return; }
+    const header = ['SKU', 'Title', 'Price', 'Discount Type', 'Discount Value', 'Stock'];
+    const lines = [header.join(',')];
+    for (const p of rows) {
+      lines.push([p.sku, p.title, p.price, p.discount_type || 'none',
+                  p.discount_value || 0, p.stock].map(csvCell).join(','));
+    }
+    download('seweaves-prices.csv', lines.join('\r\n'));
+    bulkMsg(`Exported ${rows.length} piece${rows.length === 1 ? '' : 's'}. Edit in Excel, then Import.`, 'good');
+  }
+
+  /* ---- minimal RFC-4180 CSV parser (handles quotes, commas, newlines) ---- */
+  function parseCSV(text) {
+    const out = []; let row = [], field = '', inQ = false, i = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (inQ) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false; }
+        else field += c;
+      } else if (c === '"') inQ = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); out.push(row); row = []; field = ''; }
+      else if (c !== '\r') field += c;
+      i++;
+    }
+    if (field.length || row.length) { row.push(field); out.push(row); }
+    return out.filter(r => r.some(c => String(c).trim() !== ''));
+  }
+
+  /* Update the visible input AND queue the change through the normal path. */
+  function applyCellChange(id, field, value) {
+    const el = document.querySelector(`tr[data-row="${id}"] [data-f="${field}"]`);
+    if (el) { if (el.type === 'checkbox') el.checked = !!value; else el.value = value; }
+    markDirty(id, field, String(value));
+  }
+
+  function importCSV(text) {
+    const grid = parseCSV(text);
+    if (grid.length < 2) { bulkMsg('Could not read any data rows from that file.', 'bad'); return; }
+
+    const head = grid[0].map(h => h.trim().toLowerCase());
+    const idx = name => head.indexOf(name);
+    const ci = {
+      sku: idx('sku'), price: idx('price'),
+      dtype: idx('discount type'), dval: idx('discount value'), stock: idx('stock'),
+    };
+    if (ci.sku < 0) { bulkMsg('The file needs a "SKU" column to match rows.', 'bad'); return; }
+
+    const bySku = new Map(rows.map(p => [String(p.sku).trim().toLowerCase(), p]));
+    const before = dirty.size;
+    let matched = 0; const unmatched = []; const invalid = [];
+
+    for (let r = 1; r < grid.length; r++) {
+      const cells = grid[r];
+      const skuRaw = (cells[ci.sku] || '').trim();
+      if (!skuRaw) continue;
+      const p = bySku.get(skuRaw.toLowerCase());
+      if (!p) { unmatched.push(skuRaw); continue; }
+      matched++;
+
+      const cur = {
+        price: p.price, discount_type: p.discount_type || 'none',
+        discount_value: p.discount_value || 0, stock: p.stock,
+      };
+      if (ci.price >= 0 && cells[ci.price] !== undefined && cells[ci.price] !== '') {
+        const v = parseInt(cells[ci.price], 10);
+        if (Number.isFinite(v) && v >= 1) { if (v !== cur.price) applyCellChange(p.id, 'price', v); }
+        else invalid.push(`${skuRaw}: price`);
+      }
+      if (ci.dtype >= 0 && cells[ci.dtype] !== undefined && cells[ci.dtype] !== '') {
+        const t = String(cells[ci.dtype]).trim().toLowerCase();
+        if (['none', 'percent', 'amount'].includes(t)) { if (t !== cur.discount_type) applyCellChange(p.id, 'discount_type', t); }
+        else invalid.push(`${skuRaw}: discount type`);
+      }
+      if (ci.dval >= 0 && cells[ci.dval] !== undefined && cells[ci.dval] !== '') {
+        const v = parseInt(cells[ci.dval], 10);
+        if (Number.isFinite(v) && v >= 0) { if (v !== cur.discount_value) applyCellChange(p.id, 'discount_value', v); }
+        else invalid.push(`${skuRaw}: discount value`);
+      }
+      if (ci.stock >= 0 && cells[ci.stock] !== undefined && cells[ci.stock] !== '') {
+        const v = parseInt(cells[ci.stock], 10);
+        if (Number.isFinite(v) && v >= 0) { if (v !== cur.stock) applyCellChange(p.id, 'stock', v); }
+        else invalid.push(`${skuRaw}: stock`);
+      }
+    }
+
+    const changed = dirty.size - before;
+    const parts = [`Matched ${matched} SKU${matched === 1 ? '' : 's'}`, `${changed} cell-group${changed === 1 ? '' : 's'} changed`];
+    if (unmatched.length) parts.push(`${unmatched.length} not found (clear the search to load every piece)`);
+    if (invalid.length) parts.push(`${invalid.length} value${invalid.length === 1 ? '' : 's'} skipped as invalid`);
+    const tail = changed ? ' \u2014 review the highlighted rows, then press Save all changes.' : '';
+    bulkMsg(parts.join(' \u00b7 ') + tail, changed ? 'good' : '');
+  }
+
+  /* ---- wire buttons ---- */
+  const exp = $('exportPrices'); if (exp) exp.onclick = exportCSV;
+  const impBtn = $('importPrices'), impFile = $('importFile');
+  if (impBtn && impFile) {
+    impBtn.onclick = () => impFile.click();
+    impFile.onchange = () => {
+      const f = impFile.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try { importCSV(String(reader.result)); }
+        catch (e) { bulkMsg('Import failed: ' + e.message, 'bad'); }
+        impFile.value = '';
+      };
+      reader.readAsText(f);
+    };
+  }
+
+  /* ---- thumbnail zoom (delegated so it survives table re-renders) ---- */
+  const pRows = $('pRows');
+  if (pRows) pRows.addEventListener('click', e => {
+    const img = e.target.closest('td img'); if (!img) return;
+    const tr = img.closest('tr[data-row]'); if (!tr) return;
+    const p = rows.find(x => x.id === +tr.dataset.row);
+    if (!p || !p.images || !p.images[0]) return;
+    const ov = $('imgZoom'), zi = $('imgZoomImg');
+    if (!ov || !zi) return;
+    zi.src = p.images[0]; zi.alt = p.title || '';
+    ov.classList.add('open');
+  });
+  const ov = $('imgZoom');
+  if (ov) ov.onclick = () => ov.classList.remove('open');
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && ov && ov.classList.contains('open')) ov.classList.remove('open');
+  });
 })();
