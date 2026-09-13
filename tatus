@@ -1,0 +1,242 @@
+warning: in the working copy of 'db-postgres.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'package.json', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'server.js', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/db-postgres.js b/db-postgres.js[m
+[1mindex 6da838d..c1e151f 100644[m
+[1m--- a/db-postgres.js[m
+[1m+++ b/db-postgres.js[m
+[36m@@ -95,26 +95,6 @@[m [mexport async function migrate() {[m
+     created_at TIMESTAMPTZ NOT NULL DEFAULT now()[m
+   );[m
+ [m
+[31m-  CREATE TABLE IF NOT EXISTS site_hits ([m
+[31m-    day   TEXT NOT NULL,[m
+[31m-    kind  TEXT NOT NULL,[m
+[31m-    hits  INTEGER NOT NULL DEFAULT 0,[m
+[31m-    PRIMARY KEY (day, kind)[m
+[31m-  );[m
+[31m-[m
+[31m-  CREATE TABLE IF NOT EXISTS site_visitors ([m
+[31m-    day     TEXT NOT NULL,[m
+[31m-    visitor TEXT NOT NULL,[m
+[31m-    PRIMARY KEY (day, visitor)[m
+[31m-  );[m
+[31m-[m
+[31m-  CREATE TABLE IF NOT EXISTS site_refs ([m
+[31m-    day  TEXT NOT NULL,[m
+[31m-    ref  TEXT NOT NULL,[m
+[31m-    hits INTEGER NOT NULL DEFAULT 0,[m
+[31m-    PRIMARY KEY (day, ref)[m
+[31m-  );[m
+[31m-[m
+   CREATE TABLE IF NOT EXISTS settings ([m
+     key   TEXT PRIMARY KEY,[m
+     value TEXT NOT NULL[m
+[1mdiff --git a/package.json b/package.json[m
+[1mindex 06b55b0..d06aced 100644[m
+[1m--- a/package.json[m
+[1m+++ b/package.json[m
+[36m@@ -10,8 +10,7 @@[m
+   "scripts": {[m
+     "start": "node server.js",[m
+     "dev": "node --watch server.js",[m
+[31m-    "seed": "node seed.js",[m
+[31m-    "check": "node check-scripts.mjs"[m
+[32m+[m[32m    "seed": "node seed.js"[m
+   },[m
+   "dependencies": {[m
+     "better-sqlite3": "^11.10.0",[m
+[1mdiff --git a/server.js b/server.js[m
+[1mindex c554dba..021a455 100644[m
+[1m--- a/server.js[m
+[1m+++ b/server.js[m
+[36m@@ -101,11 +101,8 @@[m [mapp.post('/api/admin/upload', requireAdmin, receiveImages, wrap(async (req, res)[m
+   for (const file of req.files || []) {[m
+     const name = `${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;[m
+     const [full, thumb] = await Promise.all([[m
+[31m-      // 2000px on the long edge: enough that a customer can zoom right into the[m
+[31m-      // zari and still see thread, without the file getting silly. WebP at 82[m
+[31m-      // keeps this around 300–450 KB.[m
+       sharp(file.buffer).rotate()[m
+[31m-        .resize(2000, 2667, { fit: 'inside', withoutEnlargement: true })[m
+[32m+[m[32m        .resize(1200, 1600, { fit: 'inside', withoutEnlargement: true })[m
+         .webp({ quality: 82 }).toBuffer(),[m
+       sharp(file.buffer).rotate()[m
+         .resize(500, 667, { fit: 'cover' })[m
+[36m@@ -134,88 +131,6 @@[m [mif (!storage.usingR2 && !storage.usingCloudinary) {[m
+   app.use('/uploads', express.static(storage.LOCAL_DIR, { maxAge: '30d', immutable: true }));[m
+ }[m
+ [m
+[31m-/* ----------------------------- traffic ------------------------------ *[m
+[31m- * Counts kept as daily aggregates rather than a row per request — Neon's free[m
+[31m- * tier will not thank you for a million-row log, and totals are all the shop[m
+[31m- * actually needs. Visitors are identified by a salted hash of IP + browser,[m
+[31m- * never the address itself, and the hash changes daily.[m
+[31m- * -------------------------------------------------------------------- */[m
+[31m-const HIT_SALT = process.env.HIT_SALT || crypto.randomBytes(16).toString('hex');[m
+[31m-[m
+[31m-const today = () => new Date().toISOString().slice(0, 10);[m
+[31m-[m
+[31m-function visitorId(req, day) {[m
+[31m-  const raw = `${req.ip}|${req.get('user-agent') || ''}|${day}`;[m
+[31m-  return crypto.createHash('sha256').update(raw + HIT_SALT).digest('hex').slice(0, 32);[m
+[31m-}[m
+[31m-[m
+[31m-function sourceOf(req) {[m
+[31m-  const ref = req.get('referer') || '';[m
+[31m-  if (!ref) return 'direct';[m
+[31m-  try {[m
+[31m-    const host = new URL(ref).hostname.replace(/^www\./, '');[m
+[31m-    if (host.endsWith('onrender.com') || host === req.hostname) return 'direct';[m
+[31m-    if (/whatsapp/.test(host)) return 'WhatsApp';[m
+[31m-    if (/instagram/.test(host)) return 'Instagram';[m
+[31m-    if (/facebook|fb\./.test(host)) return 'Facebook';[m
+[31m-    if (/google/.test(host)) return 'Google';[m
+[31m-    return host.slice(0, 60);[m
+[31m-  } catch { return 'direct'; }[m
+[31m-}[m
+[31m-[m
+[31m-// Fire and forget: a counter must never slow down or break a page load.[m
+[31m-function recordHit(req, kind) {[m
+[31m-  const day = today();[m
+[31m-  const visitor = visitorId(req, day);[m
+[31m-  const ref = sourceOf(req);[m
+[31m-[m
+[31m-  Promise.all([[m
+[31m-    q(`INSERT INTO site_hits (day, kind, hits) VALUES (@day, @kind, 1)[m
+[31m-       ON CONFLICT (day, kind) DO UPDATE SET hits = site_hits.hits + 1`, { day, kind }),[m
+[31m-    q(`INSERT INTO site_visitors (day, visitor) VALUES (@day, @visitor)[m
+[31m-       ON CONFLICT (day, visitor) DO NOTHING`, { day, visitor }),[m
+[31m-    q(`INSERT INTO site_refs (day, ref, hits) VALUES (@day, @ref, 1)[m
+[31m-       ON CONFLICT (day, ref) DO UPDATE SET hits = site_refs.hits + 1`, { day, ref })[m
+[31m-  ]).catch(err => console.error('Hit not recorded:', err.message));[m
+[31m-}[m
+[31m-[m
+[31m-app.get('/api/admin/traffic', requireAdmin, wrap(async (_req, res) => {[m
+[31m-  const days = await q(`SELECT day, SUM(hits) AS hits FROM site_hits[m
+[31m-                        GROUP BY day ORDER BY day DESC LIMIT 30`);[m
+[31m-  const visitors = await q(`SELECT day, COUNT(*) AS visitors FROM site_visitors[m
+[31m-                            GROUP BY day ORDER BY day DESC LIMIT 30`);[m
+[31m-  const byKind = await q(`SELECT kind, SUM(hits) AS hits FROM site_hits[m
+[31m-                          GROUP BY kind ORDER BY hits DESC`);[m
+[31m-  const refs = await q(`SELECT ref, SUM(hits) AS hits FROM site_refs[m
+[31m-                        GROUP BY ref ORDER BY hits DESC LIMIT 8`);[m
+[31m-  const pieces = await q(`SELECT title, slug, views, order_count FROM products[m
+[31m-                          WHERE views > 0 ORDER BY views DESC LIMIT 10`);[m
+[31m-[m
+[31m-  const visitorsByDay = new Map(visitors.map(v => [v.day, Number(v.visitors)]));[m
+[31m-  const series = days.map(d => ({[m
+[31m-    day: d.day,[m
+[31m-    hits: Number(d.hits),[m
+[31m-    visitors: visitorsByDay.get(d.day) || 0[m
+[31m-  })).reverse();[m
+[31m-[m
+[31m-  const since = n => {[m
+[31m-    const cutoff = new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);[m
+[31m-    return series.filter(d => d.day >= cutoff).reduce((s, d) => s + d.hits, 0);[m
+[31m-  };[m
+[31m-[m
+[31m-  res.json({[m
+[31m-    series,[m
+[31m-    today: series.find(d => d.day === today())?.hits || 0,[m
+[31m-    todayVisitors: series.find(d => d.day === today())?.visitors || 0,[m
+[31m-    week: since(7),[m
+[31m-    month: since(30),[m
+[31m-    total: series.reduce((s, d) => s + d.hits, 0),[m
+[31m-    byKind: byKind.map(k => ({ ...k, hits: Number(k.hits) })),[m
+[31m-    refs: refs.map(r => ({ ...r, hits: Number(r.hits) })),[m
+[31m-    pieces[m
+[31m-  });[m
+[31m-}));[m
+[31m-[m
+ /* ---------------------------- settings ------------------------------ *[m
+  * The store-wide discount is read on nearly every request, so it is cached[m
+  * briefly rather than hitting the database each time. 30s is short enough[m
+[36m@@ -486,11 +401,8 @@[m [mapp.put('/api/admin/products/:id', requireAdmin, wrap(async (req, res) => {[m
+  * Everything is validated before anything is written, and the writes share one[m
+  * connection inside a transaction, so a bad row in the middle cannot leave the[m
+  * catalogue half-updated. */[m
+[31m-const INLINE_FIELDS = ['title', 'sku', 'collection', 'price', 'mrp', 'stock', 'boost',[m
+[31m-                       'active', 'discount_type', 'discount_value',[m
+[31m-                       'fabric', 'colour', 'work', 'blouse_size', 'description'];[m
+[31m-[m
+[31m-const COLLECTIONS = ['bridal', 'party', 'festive', 'designer', 'blouse'];[m
+[32m+[m[32mconst INLINE_FIELDS = ['title', 'price', 'stock', 'boost', 'active',[m
+[32m+[m[32m                       'discount_type', 'discount_value'];[m
+ [m
+ app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {[m
+   const updates = Array.isArray(req.body.updates) ? req.body.updates.slice(0, 200) : [];[m
+[36m@@ -501,11 +413,6 @@[m [mapp.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {[m
+     'SELECT id, price FROM products WHERE id = ANY(@ids)', { ids });[m
+   const priceOfId = new Map(existing.map(r => [r.id, r.price]));[m
+ [m
+[31m-  // SKUs must stay unique, both against the catalogue and within this batch.[m
+[31m-  const allSkus = await q('SELECT id, sku FROM products');[m
+[31m-  const skuOwner = new Map(allSkus.map(r => [r.sku.toUpperCase(), r.id]));[m
+[31m-  const batchSkus = new Map();[m
+[31m-[m
+   // ---- validate everything first ----[m
+   const problems = [];[m
+   const planned = [];[m
+[36m@@ -519,33 +426,9 @@[m [mapp.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {[m
+     if (!Object.keys(set).length) continue;[m
+ [m
+     if ('title' in set) {[m
+[31m-      set.title = String(set.title).trim().slice(0, 160);[m
+[32m+[m[32m      set.title = String(set.title).trim();[m
+       if (!set.title) { problems.push(`Piece ${id}: title cannot be empty.`); continue; }[m
+     }[m
+[31m-[m
+[31m-    if ('sku' in set) {[m
+[31m-      set.sku = String(set.sku).trim().toUpperCase().slice(0, 40);[m
+[31m-      if (!set.sku) { problems.push(`Piece ${id}: SKU cannot be empty.`); continue; }[m
+[31m-      const owner = skuOwner.get(set.sku);[m
+[31m-      if (owner && owner !== id) {[m
+[31m-        problems.push(`SKU ${set.sku} already belongs to another piece.`); continue;[m
+[31m-      }[m
+[31m-      if (batchSkus.has(set.sku) && batchSkus.get(set.sku) !== id) {[m
+[31m-        problems.push(`SKU ${set.sku} is used twice in these edits.`); continue;[m
+[31m-      }[m
+[31m-      batchSkus.set(set.sku, id);[m
+[31m-    }[m
+[31m-[m
+[31m-    if ('collection' in set && !COLLECTIONS.includes(set.collection)) {[m
+[31m-      problems.push(`Piece ${id}: unknown collection.`); continue;[m
+[31m-    }[m
+[31m-[m
+[31m-    if ('mrp' in set) set.mrp = Math.max(0, parseInt(set.mrp) || 0);[m
+[31m-[m
+[31m-    for (const f of ['fabric', 'colour', 'work', 'blouse_size']) {[m
+[31m-      if (f in set) set[f] = String(set[f]).trim().slice(0, 80);[m
+[31m-    }[m
+[31m-    if ('description' in set) set.description = String(set.description).trim().slice(0, 2000);[m
+     if ('price' in set) {[m
+       set.price = parseInt(set.price) || 0;[m
+       if (set.price <= 0) { problems.push(`Piece ${id}: price must be above zero.`); continue; }[m
+[36m@@ -677,23 +560,10 @@[m [mapp.get('/api/admin/stats', requireAdmin, wrap(async (_req, res) => {[m
+ }));[m
+ [m
+ /* ------------------------------- static ---------------------------- */[m
+[31m-/* Count real page views only: not assets, not the API, not the admin, and not[m
+[31m- * the uptime pinger — otherwise the numbers are meaningless. */[m
+[31m-app.get('/', (req, res, next) => { recordHit(req, 'shop'); next(); });[m
+[32m+[m[32mapp.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));[m
+ [m
+[31m-app.get('/piece/:slug', (req, res) => {[m
+[31m-  recordHit(req, 'product');[m
+[31m-  res.sendFile(path.join(ROOT, 'public', 'product.html'));[m
+[31m-});[m
+[31m-[m
+[31m-app.use(express.static(path.join(ROOT, 'public'), {[m
+[31m-  extensions: ['html'],[m
+[31m-  // HTML and scripts must revalidate, or a deploy leaves stale files running in[m
+[31m-  // browsers that already visited. Images are content-hashed and can cache hard.[m
+[31m-  setHeaders(res, filePath) {[m
+[31m-    if (/\.(html|js|css)$/.test(filePath)) res.setHeader('Cache-Control', 'no-cache');[m
+[31m-  }[m
+[31m-}));[m
+[32m+[m[32mapp.get('/piece/:slug', (_req, res) =>[m
+[32m+[m[32m  res.sendFile(path.join(ROOT, 'public', 'product.html')));[m
+ [m
+ // Render pings this to decide the service is up.[m
+ /* For uptime pingers. Deliberately touches nothing — no database, no storage —[m

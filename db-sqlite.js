@@ -157,26 +157,6 @@ export async function migrate() {
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
-  CREATE TABLE IF NOT EXISTS site_hits (
-    day   TEXT NOT NULL,
-    kind  TEXT NOT NULL,
-    hits  INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (day, kind)
-  );
-
-  CREATE TABLE IF NOT EXISTS site_visitors (
-    day     TEXT NOT NULL,
-    visitor TEXT NOT NULL,
-    PRIMARY KEY (day, visitor)
-  );
-
-  CREATE TABLE IF NOT EXISTS site_refs (
-    day  TEXT NOT NULL,
-    ref  TEXT NOT NULL,
-    hits INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (day, ref)
-  );
-
   CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -227,7 +207,11 @@ export async function listProducts({
   const args = { limit, offset };
 
   if (!includeInactive) where.push('p.active = 1');
-  if (collection) { where.push('p.collection = @collection'); args.collection = collection; }
+  if (collection) {
+    // collection is a comma list ("designer,navratri"); match a whole key inside it
+    where.push("(',' || p.collection || ',') LIKE @collectionLike");
+    args.collectionLike = `%,${collection},%`;
+  }
   if (search) {
     where.push(`(p.title LIKE @search OR p.fabric LIKE @search OR p.colour LIKE @search
                  OR p.work LIKE @search OR p.sku LIKE @search OR p.description LIKE @search)`);
@@ -264,9 +248,18 @@ export async function getProduct(slug, { includeInactive = false } = {}) {
 }
 
 export async function facets() {
+  // A piece can be in several collections ("designer,navratri"), so tally per key.
+  const rows = await q(`SELECT collection FROM products WHERE active = 1`);
+  const tally = new Map();
+  for (const r of rows)
+    for (const c of String(r.collection || '').split(',').map(s => s.trim()).filter(Boolean))
+      tally.set(c, (tally.get(c) || 0) + 1);
+  const collections = [...tally.entries()]
+    .map(([collection, n]) => ({ collection, n }))
+    .sort((a, b) => b.n - a.n);
+
   return {
-    collections: await q(`SELECT collection, COUNT(*) AS n FROM products
-                          WHERE active = 1 GROUP BY collection ORDER BY n DESC`),
+    collections,
     fabrics: await q(`SELECT fabric, COUNT(*) AS n FROM products
                       WHERE active = 1 AND fabric <> '' GROUP BY fabric ORDER BY n DESC LIMIT 12`),
     price: await one(`SELECT MIN(price) AS min, MAX(price) AS max FROM products WHERE active = 1`)

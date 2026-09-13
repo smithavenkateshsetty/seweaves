@@ -21,6 +21,32 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
 const SHOP_WHATSAPP = process.env.SHOP_WHATSAPP || '91XXXXXXXXXX';
 const DAY = 24 * 60 * 60 * 1000;
 
+/* The collections a piece can belong to — one source of truth. Add a season here
+ * (e.g. { key: 'diwali', label: 'Diwali Edit' }) and it appears in the admin form,
+ * the inline editor and the API automatically. A piece may belong to several. */
+const COLLECTIONS = [
+  { key: 'bridal',   label: 'Bridal specials' },
+  { key: 'party',    label: 'Party wear' },
+  { key: 'festive',  label: 'Festive collection' },
+  { key: 'designer', label: 'Designer wear' },
+  { key: 'blouse',   label: 'Embroidery blouses' },
+  { key: 'navratri', label: 'Navratri Special' },
+];
+const COLLECTION_KEYS = new Set(COLLECTIONS.map(c => c.key));
+
+/* Accept an array (['designer','navratri']) or a comma string, keep only known
+ * keys, dedupe, and store as a comma-joined string. Falls back to 'designer' so a
+ * piece is never collection-less. */
+function normaliseCollections(value) {
+  const raw = Array.isArray(value) ? value : String(value ?? '').split(',');
+  const keys = [];
+  for (const item of raw) {
+    const k = String(item).trim().toLowerCase();
+    if (COLLECTION_KEYS.has(k) && !keys.includes(k)) keys.push(k);
+  }
+  return keys.length ? keys.join(',') : 'designer';
+}
+
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
@@ -101,11 +127,8 @@ app.post('/api/admin/upload', requireAdmin, receiveImages, wrap(async (req, res)
   for (const file of req.files || []) {
     const name = `${Date.now()}-${crypto.randomBytes(5).toString('hex')}`;
     const [full, thumb] = await Promise.all([
-      // 2000px on the long edge: enough that a customer can zoom right into the
-      // zari and still see thread, without the file getting silly. WebP at 82
-      // keeps this around 300–450 KB.
       sharp(file.buffer).rotate()
-        .resize(2000, 2667, { fit: 'inside', withoutEnlargement: true })
+        .resize(1200, 1600, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 82 }).toBuffer(),
       sharp(file.buffer).rotate()
         .resize(500, 667, { fit: 'cover' })
@@ -133,88 +156,6 @@ app.post('/api/admin/upload', requireAdmin, receiveImages, wrap(async (req, res)
 if (!storage.usingR2 && !storage.usingCloudinary) {
   app.use('/uploads', express.static(storage.LOCAL_DIR, { maxAge: '30d', immutable: true }));
 }
-
-/* ----------------------------- traffic ------------------------------ *
- * Counts kept as daily aggregates rather than a row per request — Neon's free
- * tier will not thank you for a million-row log, and totals are all the shop
- * actually needs. Visitors are identified by a salted hash of IP + browser,
- * never the address itself, and the hash changes daily.
- * -------------------------------------------------------------------- */
-const HIT_SALT = process.env.HIT_SALT || crypto.randomBytes(16).toString('hex');
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-function visitorId(req, day) {
-  const raw = `${req.ip}|${req.get('user-agent') || ''}|${day}`;
-  return crypto.createHash('sha256').update(raw + HIT_SALT).digest('hex').slice(0, 32);
-}
-
-function sourceOf(req) {
-  const ref = req.get('referer') || '';
-  if (!ref) return 'direct';
-  try {
-    const host = new URL(ref).hostname.replace(/^www\./, '');
-    if (host.endsWith('onrender.com') || host === req.hostname) return 'direct';
-    if (/whatsapp/.test(host)) return 'WhatsApp';
-    if (/instagram/.test(host)) return 'Instagram';
-    if (/facebook|fb\./.test(host)) return 'Facebook';
-    if (/google/.test(host)) return 'Google';
-    return host.slice(0, 60);
-  } catch { return 'direct'; }
-}
-
-// Fire and forget: a counter must never slow down or break a page load.
-function recordHit(req, kind) {
-  const day = today();
-  const visitor = visitorId(req, day);
-  const ref = sourceOf(req);
-
-  Promise.all([
-    q(`INSERT INTO site_hits (day, kind, hits) VALUES (@day, @kind, 1)
-       ON CONFLICT (day, kind) DO UPDATE SET hits = site_hits.hits + 1`, { day, kind }),
-    q(`INSERT INTO site_visitors (day, visitor) VALUES (@day, @visitor)
-       ON CONFLICT (day, visitor) DO NOTHING`, { day, visitor }),
-    q(`INSERT INTO site_refs (day, ref, hits) VALUES (@day, @ref, 1)
-       ON CONFLICT (day, ref) DO UPDATE SET hits = site_refs.hits + 1`, { day, ref })
-  ]).catch(err => console.error('Hit not recorded:', err.message));
-}
-
-app.get('/api/admin/traffic', requireAdmin, wrap(async (_req, res) => {
-  const days = await q(`SELECT day, SUM(hits) AS hits FROM site_hits
-                        GROUP BY day ORDER BY day DESC LIMIT 30`);
-  const visitors = await q(`SELECT day, COUNT(*) AS visitors FROM site_visitors
-                            GROUP BY day ORDER BY day DESC LIMIT 30`);
-  const byKind = await q(`SELECT kind, SUM(hits) AS hits FROM site_hits
-                          GROUP BY kind ORDER BY hits DESC`);
-  const refs = await q(`SELECT ref, SUM(hits) AS hits FROM site_refs
-                        GROUP BY ref ORDER BY hits DESC LIMIT 8`);
-  const pieces = await q(`SELECT title, slug, views, order_count FROM products
-                          WHERE views > 0 ORDER BY views DESC LIMIT 10`);
-
-  const visitorsByDay = new Map(visitors.map(v => [v.day, Number(v.visitors)]));
-  const series = days.map(d => ({
-    day: d.day,
-    hits: Number(d.hits),
-    visitors: visitorsByDay.get(d.day) || 0
-  })).reverse();
-
-  const since = n => {
-    const cutoff = new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
-    return series.filter(d => d.day >= cutoff).reduce((s, d) => s + d.hits, 0);
-  };
-
-  res.json({
-    series,
-    today: series.find(d => d.day === today())?.hits || 0,
-    todayVisitors: series.find(d => d.day === today())?.visitors || 0,
-    week: since(7),
-    month: since(30),
-    total: series.reduce((s, d) => s + d.hits, 0),
-    byKind: byKind.map(k => ({ ...k, hits: Number(k.hits) })),
-    refs: refs.map(r => ({ ...r, hits: Number(r.hits) })),
-    pieces
-  });
-}));
 
 /* ---------------------------- settings ------------------------------ *
  * The store-wide discount is read on nearly every request, so it is cached
@@ -274,6 +215,8 @@ app.get('/api/products', wrap(async (req, res) => {
 }));
 
 app.get('/api/facets', wrap(async (_req, res) => res.json(await facets())));
+
+app.get('/api/collections', (_req, res) => res.json({ collections: COLLECTIONS }));
 app.get('/api/shop', (_req, res) => {
   // 919807338745 -> +91 98073 38745, which is how an Indian customer reads it.
   const digits = SHOP_WHATSAPP.replace(/\D/g, '');
@@ -399,8 +342,7 @@ function normalise(body) {
   const v = {};
   v.title = String(body.title || '').trim();
   v.sku = String(body.sku || '').trim().toUpperCase();
-  v.collection = ['bridal', 'party', 'festive', 'designer', 'blouse']
-    .includes(body.collection) ? body.collection : 'designer';
+  v.collection = normaliseCollections(body.collections ?? body.collection);
   for (const n of ['price', 'mrp', 'stock', 'boost']) v[n] = parseInt(body[n]) || 0;
   for (const s of ['fabric', 'colour', 'work', 'blouse_size', 'description'])
     v[s] = String(body[s] || '').trim();
@@ -486,11 +428,8 @@ app.put('/api/admin/products/:id', requireAdmin, wrap(async (req, res) => {
  * Everything is validated before anything is written, and the writes share one
  * connection inside a transaction, so a bad row in the middle cannot leave the
  * catalogue half-updated. */
-const INLINE_FIELDS = ['title', 'sku', 'collection', 'price', 'mrp', 'stock', 'boost',
-                       'active', 'discount_type', 'discount_value',
-                       'fabric', 'colour', 'work', 'blouse_size', 'description'];
-
-const COLLECTIONS = ['bridal', 'party', 'festive', 'designer', 'blouse'];
+const INLINE_FIELDS = ['title', 'price', 'stock', 'boost', 'active',
+                       'discount_type', 'discount_value', 'collection'];
 
 app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
   const updates = Array.isArray(req.body.updates) ? req.body.updates.slice(0, 200) : [];
@@ -500,11 +439,6 @@ app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
   const existing = await q(
     'SELECT id, price FROM products WHERE id = ANY(@ids)', { ids });
   const priceOfId = new Map(existing.map(r => [r.id, r.price]));
-
-  // SKUs must stay unique, both against the catalogue and within this batch.
-  const allSkus = await q('SELECT id, sku FROM products');
-  const skuOwner = new Map(allSkus.map(r => [r.sku.toUpperCase(), r.id]));
-  const batchSkus = new Map();
 
   // ---- validate everything first ----
   const problems = [];
@@ -519,33 +453,9 @@ app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
     if (!Object.keys(set).length) continue;
 
     if ('title' in set) {
-      set.title = String(set.title).trim().slice(0, 160);
+      set.title = String(set.title).trim();
       if (!set.title) { problems.push(`Piece ${id}: title cannot be empty.`); continue; }
     }
-
-    if ('sku' in set) {
-      set.sku = String(set.sku).trim().toUpperCase().slice(0, 40);
-      if (!set.sku) { problems.push(`Piece ${id}: SKU cannot be empty.`); continue; }
-      const owner = skuOwner.get(set.sku);
-      if (owner && owner !== id) {
-        problems.push(`SKU ${set.sku} already belongs to another piece.`); continue;
-      }
-      if (batchSkus.has(set.sku) && batchSkus.get(set.sku) !== id) {
-        problems.push(`SKU ${set.sku} is used twice in these edits.`); continue;
-      }
-      batchSkus.set(set.sku, id);
-    }
-
-    if ('collection' in set && !COLLECTIONS.includes(set.collection)) {
-      problems.push(`Piece ${id}: unknown collection.`); continue;
-    }
-
-    if ('mrp' in set) set.mrp = Math.max(0, parseInt(set.mrp) || 0);
-
-    for (const f of ['fabric', 'colour', 'work', 'blouse_size']) {
-      if (f in set) set[f] = String(set[f]).trim().slice(0, 80);
-    }
-    if ('description' in set) set.description = String(set.description).trim().slice(0, 2000);
     if ('price' in set) {
       set.price = parseInt(set.price) || 0;
       if (set.price <= 0) { problems.push(`Piece ${id}: price must be above zero.`); continue; }
@@ -553,6 +463,7 @@ app.patch('/api/admin/products/bulk', requireAdmin, wrap(async (req, res) => {
     if ('stock' in set) set.stock = Math.max(0, parseInt(set.stock) || 0);
     if ('boost' in set) set.boost = Math.max(0, Math.min(10, parseInt(set.boost) || 0));
     if ('active' in set) set.active = Boolean(set.active);
+    if ('collection' in set) set.collection = normaliseCollections(set.collection);
 
     if ('discount_type' in set) {
       set.discount_type = ['percent', 'amount'].includes(set.discount_type)
@@ -677,23 +588,10 @@ app.get('/api/admin/stats', requireAdmin, wrap(async (_req, res) => {
 }));
 
 /* ------------------------------- static ---------------------------- */
-/* Count real page views only: not assets, not the API, not the admin, and not
- * the uptime pinger — otherwise the numbers are meaningless. */
-app.get('/', (req, res, next) => { recordHit(req, 'shop'); next(); });
+app.use(express.static(path.join(ROOT, 'public'), { extensions: ['html'] }));
 
-app.get('/piece/:slug', (req, res) => {
-  recordHit(req, 'product');
-  res.sendFile(path.join(ROOT, 'public', 'product.html'));
-});
-
-app.use(express.static(path.join(ROOT, 'public'), {
-  extensions: ['html'],
-  // HTML and scripts must revalidate, or a deploy leaves stale files running in
-  // browsers that already visited. Images are content-hashed and can cache hard.
-  setHeaders(res, filePath) {
-    if (/\.(html|js|css)$/.test(filePath)) res.setHeader('Cache-Control', 'no-cache');
-  }
-}));
+app.get('/piece/:slug', (_req, res) =>
+  res.sendFile(path.join(ROOT, 'public', 'product.html')));
 
 // Render pings this to decide the service is up.
 /* For uptime pingers. Deliberately touches nothing — no database, no storage —

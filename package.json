@@ -10,8 +10,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "seed": "node seed.js",
-    "check": "node check-scripts.mjs"
+    "seed": "node seed.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",

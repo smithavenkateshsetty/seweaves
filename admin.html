@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop admin — SeWeaves</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/styles.css">
+<style>
+.tabs{display:flex;gap:6px;border-bottom:1px solid rgba(201,162,87,.3);margin-bottom:28px;flex-wrap:wrap}
+.tabs button{font-family:var(--engraved);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;
+  background:none;border:0;border-bottom:2px solid transparent;color:var(--ivory-dim);
+  padding:12px 16px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--gold-bright);border-color:var(--gold)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;margin-bottom:30px}
+.stat{border:var(--frame);padding:18px}
+.stat b{display:block;font-family:var(--display);font-size:2rem;color:var(--gold-bright);line-height:1}
+.stat span{font-family:var(--engraved);font-size:.55rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--gold)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th{font-family:var(--engraved);font-size:.55rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--gold);text-align:left;padding:10px 12px;border-bottom:1px solid rgba(201,162,87,.4)}
+td{padding:11px 12px;border-bottom:1px solid rgba(201,162,87,.2);vertical-align:middle}
+tr:hover td{background:rgba(90,26,33,.4)}
+td img{width:44px;height:58px;object-fit:cover;border:1px solid rgba(201,162,87,.35)}
+.wrapx{overflow-x:auto}
+.form2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:700px){.form2{grid-template-columns:1fr}}
+.form2 .full{grid-column:1/-1}
+label.lab{display:block;font-family:var(--engraved);font-size:.55rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--gold);margin-bottom:6px}
+.drop{border:1px dashed rgba(201,162,87,.55);padding:26px;text-align:center;cursor:pointer;
+  color:var(--ivory-dim)}
+.drop:hover{background:rgba(201,162,87,.08)}
+.shots{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:flex-start}
+.shots figure{margin:0;position:relative;cursor:grab}
+.shots figure:active{cursor:grabbing}
+.shots img{width:82px;height:108px;object-fit:cover;border:1px solid rgba(201,162,87,.4);display:block}
+.shots figcaption.cover{position:absolute;top:0;left:0;right:0;text-align:center;
+  font-family:var(--engraved);font-size:.46rem;letter-spacing:.14em;text-transform:uppercase;
+  background:var(--gold-bright);color:var(--oxblood-deep);padding:3px 0}
+.shots .rm{position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;
+  background:var(--oxblood-deep);border:1px solid var(--gold);color:var(--gold-bright);
+  cursor:pointer;line-height:1;padding:0}
+.shots .nudge{display:flex;gap:4px;margin-top:5px}
+.shots .nudge button{flex:1;background:transparent;border:1px solid rgba(201,162,87,.4);
+  color:var(--gold-bright);cursor:pointer;padding:3px 0;line-height:1;font-size:.85rem}
+.shots .nudge button:hover:not(:disabled){background:rgba(201,162,87,.2)}
+.shots .nudge button:disabled{opacity:.3;cursor:default}
+.pill{font-family:var(--engraved);font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:3px 8px;border:1px solid rgba(201,162,87,.5);color:var(--gold-bright)}
+.pill.off{color:var(--ivory-dim);opacity:.6}
+.offerbox{display:flex;gap:20px;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;border:var(--frame);padding:18px 22px;margin-bottom:22px;
+  background:linear-gradient(180deg,rgba(90,26,33,.5),rgba(51,9,14,.2))}
+.offerctl{display:flex;gap:10px;align-items:center}
+.offerctl .pct{font-family:var(--display);font-size:1.3rem;color:var(--gold-bright)}
+td .final{color:var(--gold-bright)}
+td .was{color:var(--ivory-dim);text-decoration:line-through;font-size:.82em;margin-left:6px;opacity:.7}
+td .offpill{font-family:var(--engraved);font-size:.5rem;letter-spacing:.12em;
+  background:var(--gold-bright);color:var(--oxblood-deep);padding:3px 7px}
+
+/* editable cells */
+.cell{background:transparent;border:1px solid transparent;color:var(--ivory);
+  font-family:var(--body);font-size:.92rem;padding:6px 8px;width:100%;border-radius:0}
+.cell:hover{border-color:rgba(201,162,87,.35);background:rgba(51,9,14,.5)}
+.cell:focus{border-color:var(--gold);background:rgba(51,9,14,.8);outline:none}
+.cell.num{width:76px}
+.cell.wide{font-weight:500}
+select.cell{cursor:pointer;width:86px;margin-bottom:4px}
+td:has(> .cell.num){white-space:nowrap}
+tr.dirty td{background:rgba(201,162,87,.09)}
+tr.dirty td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+
+.livebox{display:inline-flex;cursor:pointer}
+.livebox input{accent-color:var(--gold);width:17px;height:17px}
+
+.savebar{position:sticky;top:64px;z-index:15;display:none;
+  align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  border:1px solid var(--gold);background:rgba(74,18,25,.97);backdrop-filter:blur(8px);
+  padding:12px 18px;margin-bottom:16px;
+  font-family:var(--engraved);font-size:.62rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--gold-bright)}
+.savebar.show{display:flex}
+
+/* bulk price toolbar + zoomable thumbnails (added) */
+.pricetools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 4px}
+td img{cursor:zoom-in}
+.imgzoom{position:fixed;inset:0;z-index:90;background:rgba(20,3,6,.92);display:none;
+  align-items:center;justify-content:center;padding:24px;cursor:zoom-out}
+.imgzoom.open{display:flex}
+.imgzoom img{max-width:min(90vw,560px);max-height:88vh;object-fit:contain;
+  border:1px solid rgba(201,162,87,.5)}
+
+/* collections: inline chips in the table + checkbox group in the form (added) */
+.collcell{min-width:170px;max-width:230px}
+.collchip{font-family:var(--engraved);font-size:.5rem;letter-spacing:.08em;text-transform:uppercase;
+  background:transparent;border:1px solid rgba(201,162,87,.4);color:var(--ivory-dim);
+  padding:3px 7px;margin:2px 3px 2px 0;cursor:pointer}
+.collchip:hover{border-color:rgba(201,162,87,.75);color:var(--gold-bright)}
+.collchip[aria-pressed="true"]{background:var(--gold-bright);color:var(--oxblood-deep);border-color:var(--gold-bright)}
+.collset{display:flex;flex-wrap:wrap;gap:14px}
+.collchk{display:flex;align-items:center;gap:7px;font-size:.92rem;color:var(--ivory);cursor:pointer}
+.collchk input{accent-color:var(--gold);width:16px;height:16px}
+</style>
+</head>
+<body>
+<div class="page">
+<header class="topbar">
+  <a class="brand" href="/">SeWeaves<small>Shop admin</small></a>
+  <nav class="topnav"><a href="/">View the shop</a></nav>
+  <button class="bagbtn" id="signOut" hidden>Sign out</button>
+</header>
+
+<main class="shell" style="max-width:1180px">
+
+  <section id="loginView" hidden>
+    <div style="max-width:360px;margin:8vh auto;border:var(--frame);padding:34px">
+      <p class="eyebrow">Shop admin</p>
+      <h1 class="h2">Sign in</h1>
+      <div class="stack" style="margin-top:20px">
+        <input class="field" id="pw" type="password" placeholder="Admin password" autocomplete="current-password">
+        <button class="btn wide" id="signIn">Sign in</button>
+        <div id="loginMsg"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="appView" hidden>
+    <div class="stats" id="stats"></div>
+
+    <div class="tabs">
+      <button data-tab="catalogue" aria-selected="true">Catalogue</button>
+      <button data-tab="add">Add a piece</button>
+      <button data-tab="orders">Enquiries</button>
+      <button data-tab="reviews">Reviews</button>
+    </div>
+
+    <!-- CATALOGUE -->
+    <div data-panel="catalogue">
+      <div class="offerbox">
+        <div>
+          <label class="lab" for="storeDiscount">Store-wide discount</label>
+          <p class="muted" style="margin:0;font-size:.86rem">
+            Applied to every piece that has no discount of its own. Set 0 to turn the offer off —
+            the banner on the shop disappears with it.</p>
+        </div>
+        <div class="offerctl">
+          <input class="field" id="storeDiscount" type="number" min="0" max="90" step="1" style="width:96px">
+          <span class="pct">%</span>
+          <button class="btn sm" id="saveDiscount">Apply</button>
+        </div>
+      </div>
+      <div id="discountMsg"></div>
+
+      <div class="pricetools">
+        <button class="btn ghost sm" id="exportPrices">Export prices (CSV)</button>
+        <button class="btn ghost sm" id="importPrices">Import prices (CSV)</button>
+        <input type="file" id="importFile" accept=".csv,text/csv" hidden>
+        <span class="muted" style="font-size:.8rem">
+          Bulk-edit in Excel: export → edit → import → Save all changes.
+          Clear the search first to include every piece.</span>
+      </div>
+      <div id="bulkMsg"></div>
+
+      <div class="resbar">
+        <span class="count" id="pCount"></span>
+        <input class="field" id="pSearch" placeholder="Search catalogue" style="width:auto">
+      </div>
+      <p class="note">Edit any cell directly. Changes are held until you press
+        <b>Save all changes</b> — Enter saves, Escape discards. Boost is your hand on the rail:
+        each point lifts a piece 100 places ahead of sales and ratings, so use 1–3 for the
+        window pieces and 0 for everything else.</p>
+      <div class="savebar" id="saveBar">
+        <span id="dirtyCount">0 pieces changed</span>
+        <div style="display:flex;gap:10px;align-items:center">
+          <button class="btn ghost sm" id="discardAll">Discard</button>
+          <button class="btn sm" id="saveAll">Save all changes</button>
+        </div>
+      </div>
+      <div id="saveBarMsg"></div>
+
+      <div class="wrapx"><table>
+        <thead><tr><th></th><th>Piece</th><th>Collections</th><th>Price ₹</th><th>Discount</th><th>Customer pays</th>
+          <th>Stock</th><th>Boost</th><th>Rank</th><th>Live</th><th></th></tr></thead>
+        <tbody id="pRows"></tbody>
+      </table></div>
+    </div>
+
+    <!-- ADD / EDIT -->
+    <div data-panel="add" hidden>
+      <h2 class="h2" id="formTitle">Add a piece</h2>
+      <div class="form2" style="margin-top:22px">
+        <div class="full">
+          <label class="lab" for="fTitle">Title</label>
+          <input class="field" id="fTitle" placeholder="Wine Kanjivaram with gold zari border">
+        </div>
+        <div>
+          <label class="lab" for="fSku">SKU</label>
+          <input class="field" id="fSku" placeholder="SW-BR-014">
+        </div>
+        <div class="full">
+          <label class="lab">Collections — a piece can be in several</label>
+          <div class="collset" id="fCollections"></div>
+        </div>
+        <div><label class="lab" for="fPrice">Price ₹</label><input class="field" id="fPrice" type="number" min="0"></div>
+        <div><label class="lab" for="fMrp">Was ₹ (0 to hide)</label><input class="field" id="fMrp" type="number" min="0" value="0"></div>
+        <div><label class="lab" for="fFabric">Fabric</label><input class="field" id="fFabric" placeholder="Pure silk"></div>
+        <div><label class="lab" for="fColour">Colour</label><input class="field" id="fColour" placeholder="Wine / gold"></div>
+        <div><label class="lab" for="fWork">Work</label><input class="field" id="fWork" placeholder="Zari, aari"></div>
+        <div><label class="lab" for="fSize">Blouse size</label><input class="field" id="fSize" placeholder="38 (blouses only)"></div>
+        <div>
+          <label class="lab" for="fDiscType">Discount on this piece</label>
+          <select class="field" id="fDiscType">
+            <option value="none">No discount — use the store offer</option>
+            <option value="percent">Percentage off</option>
+            <option value="amount">Flat amount off</option>
+          </select>
+        </div>
+        <div>
+          <label class="lab" for="fDiscValue">Discount value</label>
+          <input class="field" id="fDiscValue" type="number" min="0" value="0" placeholder="e.g. 20 or 500">
+          <p class="muted" id="discHint" style="font-size:.78rem;margin:6px 0 0"></p>
+        </div>
+        <div><label class="lab" for="fStock">Stock</label><input class="field" id="fStock" type="number" min="0" value="1"></div>
+        <div><label class="lab" for="fBoost">Boost</label><input class="field" id="fBoost" type="number" min="0" max="10" value="0"></div>
+        <div class="full">
+          <label class="lab" for="fDesc">Description</label>
+          <textarea class="field" id="fDesc" rows="3" placeholder="Where it's from, how it drapes, what it suits."></textarea>
+        </div>
+        <div class="full">
+          <label class="lab">Photos — first one is the cover, drag to reorder</label>
+          <div class="drop" id="drop">Tap to choose photos, or drop them here — up to 8</div>
+          <input type="file" id="file" accept="image/*" multiple hidden>
+          <div class="shots" id="shots"></div>
+        </div>
+        <div class="full">
+          <label class="checkrow"><input type="checkbox" id="fActive" checked> Show on the shop</label>
+        </div>
+        <div class="full stack">
+          <button class="btn" id="save">Save the piece</button>
+          <button class="btn ghost" id="cancelEdit" hidden>Cancel edit</button>
+          <div id="saveMsg"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div data-panel="orders" hidden>
+      <div class="wrapx"><table>
+        <thead><tr><th>Ref</th><th>Customer</th><th>Pieces</th><th>Total</th><th>When</th><th>Status</th></tr></thead>
+        <tbody id="oRows"></tbody>
+      </table></div>
+    </div>
+
+    <!-- REVIEWS -->
+    <div data-panel="reviews" hidden>
+      <p class="note">Reviews stay hidden until you approve them. Approving is what moves
+        the piece's rating and its place in the ranking.</p>
+      <div class="wrapx"><table>
+        <thead><tr><th>Piece</th><th>Name</th><th>Stars</th><th>Said</th><th>Status</th><th></th></tr></thead>
+        <tbody id="rRows"></tbody>
+      </table></div>
+    </div>
+  </section>
+
+</main>
+</div>
+<div class="imgzoom" id="imgZoom"><img id="imgZoomImg" alt=""></div>
+
+<script src="/admin.js"></script>
+</body>
+</html>
