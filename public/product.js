@@ -1,3 +1,8 @@
+/* Wrapped in an IIFE so product.js's top-level names (esc, rupees, thumb,
+ * collLabels, Cart, …) stay private and never collide with app.js, which
+ * shares the same global scope on this page. Fixes:
+ *   Uncaught SyntaxError: Identifier 'esc' has already been declared */
+(function () {
 /* Defensive: if app.js failed to load, fall back to local helpers rather than
  * throwing on line 1 and leaving the page stuck on "Loading...". */
 const SW = window.SeWeaves || {};
@@ -7,8 +12,10 @@ const rupees = SW.rupees || (n => '\u20B9' + Number(n || 0).toLocaleString('en-I
 const thumb = SW.thumb || (s => s ? s.replace(/\.webp$/, '-thumb.webp') : '');
 const COLLECTION_LABEL = SW.COLLECTION_LABEL || {
   bridal: 'Bridal specials', party: 'Party wear', festive: 'Festive collection',
-  designer: 'Designer wear', blouse: 'Embroidery blouses'
+  designer: 'Designer wear', blouse: 'Embroidery blouses', navratri: 'Navratri Special'
 };
+const collLabels = SW.collLabels || (s => String(s || '').split(',')
+  .map(k => COLLECTION_LABEL[k.trim()] || k.trim()).filter(Boolean).join(' \u00b7 '));
 const priceHTML = SW.priceHTML || (p => `<p class="bigprice">${rupees(p.final_price ?? p.price)}</p>`);
 const Cart = SW.Cart || null;
 const openBag = SW.openBag || (() => {});
@@ -188,7 +195,7 @@ function render(p) {
   <div class="detail">
     ${galleryMarkup()}
     <div>
-      <p class="eyebrow">${esc(COLLECTION_LABEL[p.collection] || p.collection)}</p>
+      <p class="eyebrow">${esc(collLabels(p.collection) || COLLECTION_LABEL[p.collection] || p.collection)}</p>
       <h1 class="h1">${esc(p.title)}</h1>
       ${p.rating_count ? `<p class="stars">${stars(p.avg_rating)} <small>${p.avg_rating} from ${p.rating_count} ${p.rating_count === 1 ? 'buyer' : 'buyers'}</small></p>` : ''}
       ${priceHTML(p, true)}
@@ -277,3 +284,5 @@ function render(p) {
       : `<p class="note bad">${esc(data.error)}</p>`;
   };
 }
+
+})();
